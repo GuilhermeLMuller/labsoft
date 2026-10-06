@@ -2,32 +2,34 @@ from database import SessionLocal
 import models
 
 
-def register_user(new_user):
+def register_account(new_account):
     session = SessionLocal()
     try:
-        user = models.User(
-            nome=new_user.get("name"),
-            email=new_user.get("email"),
-            senha_hash=new_user.get("password"),
+        assinatura = models.Assinatura(
+            #nome=new_account.get("name"),
+            email=new_account.get("email"),
+            email_assinante=new_account.get("email"),
+            senha_hash=new_account.get("password"),
         )
+        nome = new_account.get("name")
 
-        if not user.nome or not user.email or not user.senha_hash:
+        if not nome or not assinatura.email or not assinatura.senha_hash:
             raise ValueError("Nome, e-mail e senha são obrigatórios.")
 
-        existing_user = session.query(models.User).filter(models.User.email == user.email).first()
-        if existing_user:
+        existing_account = session.query(models.Assinatura).filter(models.Assinatura.email == assinatura.email).first()
+        if existing_account:
             raise ValueError("E-mail já cadastrado.")
 
-        session.add(user)
+        session.add(assinatura)
         session.commit()
-        session.refresh(user)
+        session.refresh(assinatura)
 
         return {
             "message": "Conta criada com sucesso",
-            "user": {
-                "id": user.id,
-                "name": user.nome,
-                "email": user.email,
+            "assinatura": {
+                "id": assinatura.id_assinatura,
+                "name": nome,
+                "email": assinatura.email,
             },
         }
     except Exception:
@@ -37,7 +39,7 @@ def register_user(new_user):
         session.close()
 
 
-def login_user(login_data):
+def login_account(login_data):
     session = SessionLocal()
     try:
         email = login_data.get("email")
@@ -46,16 +48,15 @@ def login_user(login_data):
         if not email or not password:
             raise ValueError("E-mail e senha são obrigatórios.")
 
-        user = session.query(models.User).filter(models.User.email == email).first()
-        if not user or user.senha_hash != password:
+        assinatura = session.query(models.Assinatura).filter(models.Assinatura.email == email).first()
+        if not assinatura or assinatura.senha_hash != password:
             raise ValueError("E-mail ou senha inválidos.")
 
         return {
             "message": "Login realizado com sucesso",
             "user": {
-                "id": user.id,
-                "name": user.nome,
-                "email": user.email,
+                "id": assinatura.id_assinatura,
+                "email": assinatura.email,
             },
         }
     finally:
