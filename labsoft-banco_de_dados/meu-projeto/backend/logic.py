@@ -110,3 +110,92 @@ def login_account(login_data):
         }
     finally:
         session.close()
+def list_assinaturas():
+    session = SessionLocal()
+    try:
+        assinaturas = session.query(models.Assinatura).all()
+        return [
+            {
+                "id": assinatura.id_assinatura,
+                "email": assinatura.email,
+                "subscription_type_id": assinatura.id_tipo_assinatura,
+            }
+            for assinatura in assinaturas
+        ]
+    finally:
+        session.close()
+def list_usuarios():
+    session = SessionLocal()
+    try:
+        usuarios = session.query(models.Usuario).all()
+        return [
+            {
+                "id": usuario.id_usuario,
+                "name": usuario.nome,
+                "subscription_id": usuario.id_assinatura,
+                "age": usuario.idade,
+            }
+            for usuario in usuarios
+        ]
+    finally:
+        session.close()
+def list_livros():
+    session = SessionLocal()
+    try:
+        livros = session.query(models.Livro).all()
+        return [
+            {
+                "id": livro.id_livro,
+                "capa": livro.capa,
+                "author": livro.autor,
+                "publication_ano": livro.ano_de_publicacao,
+                "genero": livro.genero,
+                "pais": livro.pais,
+                "sinopse": livro.sinopse,
+                "lingua": livro.linguagem,
+            }
+            for livro in livros
+        ]
+    finally:
+        session.close()
+def list_avaliacoes():
+    session = SessionLocal()
+    try:
+        avaliacoes = session.query(models.Avaliacao).all()
+        return [
+            {
+                "id": avaliacao.id_avaliacao,
+                "user_id": avaliacao.id_usuario,
+                "book_id": avaliacao.id_livro,
+                "rating": avaliacao.estrelas,
+                "comment": avaliacao.comentario,
+            }
+            for avaliacao in avaliacoes
+        ]
+    finally:
+        session.close()
+
+def list_livro_usuario():
+    session = SessionLocal()
+    try:
+        livro_usuario = session.query(models.LivroUsuario).all()
+        return [
+            {
+                "id": item.id_livro_usuario,
+                "book_id": item.id_livro,
+                "user_id": item.id_usuario,
+                "lido": item.lido,
+                "baixado": item.baixado,
+                "data_lido": item.data_lido,
+                "data_baixado": item.data_baixado,
+                "lendo": item.lendo,
+                "pagina_lendo": item.pagina_lendo,
+                "data_favoritado": item.data_favoritado,
+                "favoritado": item.favoritado,
+                "visualizado": item.visualizado,
+                "data_visualizado": item.data_visualizado,
+            }
+            for item in livro_usuario
+        ]
+    finally:
+        session.close()
