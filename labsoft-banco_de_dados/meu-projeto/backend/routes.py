@@ -4,10 +4,10 @@ from fastapi.responses import JSONResponse
 
 from database import engine
 import models
-from logic import list_subscription_types, login_account, register_account
+from logic import *
 from schemas.auth import LoginInput, RegisterInput
-from schemas.usuario import CreateUserInput, ReplaceUserInput, UpdateUserNameInput, UpdateUserTipoInput, UpdateUserIdadeInput, DeleteUserInput 
-import schemas.livros
+from schemas.usuario import *
+from schemas.livros import *
 
 app = FastAPI()
 

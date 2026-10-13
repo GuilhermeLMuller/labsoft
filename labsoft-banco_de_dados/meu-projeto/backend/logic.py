@@ -165,8 +165,8 @@ def replace_user(user):
         nome = user.get("nome")
         tipo_usuario = user.get("tipo_usuario") or user.get("tipo")
         idade = user.get("idade")
-        gostos = new_user.get("gostos", [])
-        estatisticas = new_user.get("estatisticas", {})
+        gostos = user.get("gostos", [])
+        estatisticas = user.get("estatisticas", {})
 
         if not id_usuario or not id_assinatura or not nome or not tipo_usuario or idade is None:
             raise ValueError("Faltam dados obrigatorios")
