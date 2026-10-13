@@ -20,10 +20,22 @@ async function request(path, body) {
   return data;
 }
 
-export function registerUser({ name, email, password }) {
-  // TODO: confirmar com o back-end o endpoint e os campos esperados
-  // da API de registro de conta (ex.: POST /auth/register).
-  return request("/auth/register", { name, email, password });
+export function registerUser({ name, email, password, subscription_type_id }) {
+  return request("/auth/register", {
+    name,
+    email,
+    password,
+    subscription_type_id,
+  });
+}
+
+export async function getSubscriptionTypes() {
+  const response = await fetch(`${API_URL}/auth/plans`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || "Não foi possível carregar os planos.");
+  }
+  return data;
 }
 
 export function loginUser({ email, password }) {

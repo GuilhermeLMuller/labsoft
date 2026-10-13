@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from database import engine
 import models
-from logic import register_account, login_account
+from logic import list_subscription_types, login_account, register_account
+from schemas.auth import LoginInput, RegisterInput
 
 app = FastAPI()
 
@@ -24,17 +25,22 @@ async def root():
     return {"message": "Hello World"}
 
 
+@app.get("/auth/plans")
+async def subscription_types():
+    return list_subscription_types()
+
+
 @app.post("/auth/register")
-async def register(new_account: dict = Body(...)):
+async def register(new_account: RegisterInput):
     try:
-        return register_account(new_account)
+        return register_account(new_account.model_dump())
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
 @app.post("/auth/login")
-async def login(login_data: dict = Body(...)):
+async def login(login_data: LoginInput):
     try:
-        return login_account(login_data)
+        return login_account(login_data.model_dump())
     except ValueError as exc:
         return JSONResponse(status_code=401, content={"message": str(exc)})

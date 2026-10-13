@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { registerUser } from "../api/auth";
+import { useEffect, useState } from "react";
+import { getSubscriptionTypes, registerUser } from "../api/auth";
 
 // Tela de criação de conta.
 export default function RegisterPage({ onSuccess, onBack }) {
@@ -8,9 +8,31 @@ export default function RegisterPage({ onSuccess, onBack }) {
     email: "",
     password: "",
     confirmPassword: "",
+    subscriptionTypeId: "",
   });
+  const [plans, setPlans] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getSubscriptionTypes()
+      .then((availablePlans) => {
+        if (isMounted) setPlans(availablePlans);
+      })
+      .catch((err) => {
+        if (isMounted) setError(err.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingPlans(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function handleChange(event) {
     setForm({ ...form, [event.target.name]: event.target.value });
@@ -37,6 +59,7 @@ export default function RegisterPage({ onSuccess, onBack }) {
         name: form.name,
         email: form.email,
         password: form.password,
+        subscription_type_id: Number(form.subscriptionTypeId),
       });
       onSuccess(); // TODO: decidir o fluxo após o cadastro (ir para login ou já logar).
     } catch (err) {
@@ -59,6 +82,23 @@ export default function RegisterPage({ onSuccess, onBack }) {
         <input id="email" name="email" type="email" autoComplete="email"
           value={form.email} onChange={handleChange} required />
 
+        <label htmlFor="subscriptionTypeId">Plano</label>
+        <select id="subscriptionTypeId" name="subscriptionTypeId"
+          value={form.subscriptionTypeId} onChange={handleChange}
+          disabled={loadingPlans || plans.length === 0} required>
+          <option value="">
+            {loadingPlans ? "Carregando planos..." : "Selecione um plano"}
+          </option>
+          {plans.map((plan) => (
+            <option key={plan.id} value={plan.id}>
+              {plan.name} — R$ {Number(plan.price).toFixed(2)} ({plan.max_users} usuário(s))
+            </option>
+          ))}
+        </select>
+        {!loadingPlans && plans.length === 0 && !error && (
+          <p className="error" role="alert">Nenhum plano está disponível para cadastro.</p>
+        )}
+
         <label htmlFor="password">Senha</label>
         <input id="password" name="password" type="password" autoComplete="new-password"
           value={form.password} onChange={handleChange} required />
@@ -69,7 +109,8 @@ export default function RegisterPage({ onSuccess, onBack }) {
 
         {error && <p className="error" role="alert">{error}</p>}
 
-        <button type="submit" className="btn btn-primary" disabled={loading}>
+        <button type="submit" className="btn btn-primary"
+          disabled={loading || loadingPlans || plans.length === 0}>
           {loading ? "Criando conta..." : "Criar conta"}
         </button>
       </form>
