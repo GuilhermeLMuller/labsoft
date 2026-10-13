@@ -2,12 +2,14 @@ import { useState } from "react";
 import WelcomePage from "./pages/WelcomePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import DatabasePage from "./pages/DatabasePage";
 import "./App.css";
 
 // Controla qual tela é exibida: "welcome" | "login" | "register" | "home".
 // TODO: trocar por react-router-dom quando o projeto tiver mais páginas.
 export default function App() {
   const [page, setPage] = useState("welcome");
+  const [user, setUser] = useState(null);
 
   if (page === "register") {
     return (
@@ -21,21 +23,24 @@ export default function App() {
   if (page === "login") {
     return (
       <LoginPage
-        onSuccess={() => setPage("home")}
+        onSuccess={(data) => {
+          setUser(data);
+          setPage("home");
+        }}
         onBack={() => setPage("welcome")}
       />
     );
   }
 
   if (page === "home") {
-    // TODO: substituir pela página principal do site (área logada).
     return (
-      <main className="card">
-        <h1>Você está logado</h1>
-        <button type="button" className="btn btn-secondary" onClick={() => setPage("welcome")}>
-          Sair
-        </button>
-      </main>
+      <DatabasePage
+        user={user}
+        onLogout={() => {
+          setUser(null);
+          setPage("welcome");
+        }}
+      />
     );
   }
 

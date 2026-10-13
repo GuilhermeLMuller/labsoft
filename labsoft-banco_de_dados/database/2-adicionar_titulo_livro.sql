@@ -1,0 +1,2 @@
+ALTER TABLE livros
+ADD titulo VARCHAR(255);
