@@ -6,6 +6,7 @@ from database import engine
 import models
 from logic import list_subscription_types, login_account, register_account
 from schemas.auth import LoginInput, RegisterInput
+from schemas.usuario import CreateUserInput, ReplaceUserInput, UpdateUserNameInput, UpdateUserTipoInput, UpdateUserIdadeInput, DeleteUserInput 
 
 app = FastAPI()
 
@@ -44,3 +45,58 @@ async def login(login_data: LoginInput):
         return login_account(login_data.model_dump())
     except ValueError as exc:
         return JSONResponse(status_code=401, content={"message": str(exc)})
+
+## User ##
+
+@app.post("/usuarios")
+async def create_user_endpoint(user_data: CreateUserInput):
+    try:
+        return create_user(user_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/usuarios")
+async def replace_user_endpoint(user_data: ReplaceUserInput):
+    try:
+        return replace_user(user_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/usuarios/nome")
+async def update_user_name_endpoint(user_data: UpdateUserNameInput):
+    try:
+        return update_user_name(user_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/usuarios/tipo")
+async def update_user_tipo_endpoint(user_data: UpdateUserTipoInput):
+    try:
+        return update_user_tipo(user_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/usuarios/idade")
+async def update_user_idade_endpoint(user_data: UpdateUserIdadeInput):
+    try:
+        return update_user_idade(user_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/usuarios")
+async def delete_user_endpoint(user_data: DeleteUserInput):
+    try:
+        return delete_user(user_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+#@app.put      =>Substituir
+#@app.patch    =>Atualizar parcialmente 
+#@app.delete   =>DELETE
+#@app.post     =>criar
