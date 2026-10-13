@@ -1,3 +1,5 @@
+from pydantic import BaseModel, EmailStr, Field
+
 class CreateUserInput(BaseModel):
     id_assinatura: int
     nome: str

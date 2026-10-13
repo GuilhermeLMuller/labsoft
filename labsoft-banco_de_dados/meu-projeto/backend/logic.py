@@ -112,7 +112,6 @@ def login_account(login_data):
         session.close()
 
 ## usuario ##
-from models import SessionLocal, Usuario, Assinatura
 
 def create_user(new_user):
     session = SessionLocal()
@@ -294,99 +293,325 @@ def delete_user(user_data):
         session.close()
 
 ## livros ##
+
 def create_book(new_book):
     session = SessionLocal()
     try:
+        autor = new_book.get("autor")
+        ano_de_publicacao = new_book.get("ano_de_publicacao")
+        pais = new_book.get("pais")
+        linguagem = new_book.get("linguagem")
+        sinopse = new_book.get("sinopse")
+        titulo = new_book.get("titulo")
+        genero = new_book.get("genero")
+        restricao_de_idade = new_book.get("restricao_de_idade")
 
+        # Apenas 'autor' tem NOT NULL no SQL, mas 'titulo' costuma ser essencial.
+        if not autor:
+            raise ValueError("Faltam dados obrigatórios (autor)")
+
+        if ano_de_publicacao is not None and ano_de_publicacao < 0:
+            raise ValueError("Ano de publicação não pode ser negativo")
+            
+        if restricao_de_idade is not None and restricao_de_idade < 0:
+            raise ValueError("Restrição de idade não pode ser negativa")
+
+        livro = Livro(
+            autor=autor,
+            ano_de_publicacao=ano_de_publicacao,
+            pais=pais,
+            linguagem=linguagem,
+            sinopse=sinopse,
+            titulo=titulo,
+            genero=genero,
+            restricao_de_idade=restricao_de_idade,
+        )
+        session.add(livro)
+        session.commit()
+        session.refresh(livro)
+
+        return {
+            "message": "Livro criado com sucesso",
+            "livro": {
+                "id_livro": livro.id_livro,
+                "titulo": livro.titulo,
+                "autor": livro.autor
+            },
+        }
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
+
+
 def replace_book(book):
     session = SessionLocal()
     try:
+        id_livro = book.get("id_livro") or book.get("id")
+        autor = book.get("autor")
+        ano_de_publicacao = book.get("ano_de_publicacao")
+        restricao_de_idade = book.get("restricao_de_idade")
 
+        if not id_livro or not autor:
+            raise ValueError("Faltam dados obrigatórios (id_livro, autor)")
+
+        if ano_de_publicacao is not None and ano_de_publicacao < 0:
+            raise ValueError("Ano de publicação não pode ser negativo")
+            
+        if restricao_de_idade is not None and restricao_de_idade < 0:
+            raise ValueError("Restrição de idade não pode ser negativa")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.autor = autor
+        livro.ano_de_publicacao = ano_de_publicacao
+        livro.pais = book.get("pais")
+        livro.linguagem = book.get("linguagem")
+        livro.sinopse = book.get("sinopse")
+        livro.titulo = book.get("titulo")
+        livro.genero = book.get("genero")
+        livro.restricao_de_idade = restricao_de_idade
+
+        session.commit()
+        return {"message": "Livro atualizado por completo com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_autor()
+
+def update_book_autor(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        novo_autor = book_data.get("autor") or book_data.get("novo_autor")
 
+        if not id_livro or not novo_autor:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.autor = novo_autor
+        session.commit()
+        return {"message": "Autor do livro atualizado com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_ano()
+
+def update_book_ano(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        novo_ano = book_data.get("ano_de_publicacao") or book_data.get("ano")
 
+        if not id_livro or novo_ano is None:
+            raise ValueError("Faltam dados obrigatórios")
+
+        if novo_ano < 0:
+            raise ValueError("Ano de publicação não pode ser negativo")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.ano_de_publicacao = novo_ano
+        session.commit()
+        return {"message": "Ano de publicação atualizado com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_pais()
+
+def update_book_pais(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        novo_pais = book_data.get("pais")
 
+        if not id_livro or not novo_pais:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.pais = novo_pais
+        session.commit()
+        return {"message": "País do livro atualizado com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_linguagem()
+
+def update_book_linguagem(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        nova_linguagem = book_data.get("linguagem")
 
+        if not id_livro or not nova_linguagem:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.linguagem = nova_linguagem
+        session.commit()
+        return {"message": "Linguagem do livro atualizada com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_sinopse()
+
+def update_book_sinopse(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        nova_sinopse = book_data.get("sinopse")
 
+        if not id_livro or not nova_sinopse:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.sinopse = nova_sinopse
+        session.commit()
+        return {"message": "Sinopse do livro atualizada com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_capa()
+
+def update_book_capa(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        nova_capa = book_data.get("capa")
 
+        if not id_livro or not nova_capa:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.capa = nova_capa
+        session.commit()
+        return {"message": "Capa do livro atualizada com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def update_book_idade()
+
+def update_book_idade(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        nova_idade = book_data.get("restricao_de_idade") or book_data.get("idade")
 
+        if not id_livro or nova_idade is None:
+            raise ValueError("Faltam dados obrigatórios")
+            
+        if nova_idade < 0:
+            raise ValueError("Restrição de idade não pode ser negativa")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.restricao_de_idade = nova_idade
+        session.commit()
+        return {"message": "Restrição de idade do livro atualizada com sucesso"}
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-def delete_book(book):
+
+def update_book_titulo(book_data):
     session = SessionLocal()
     try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        novo_titulo = book_data.get("titulo")
 
+        if not id_livro or not novo_titulo:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.titulo = novo_titulo
+        session.commit()
+        return {"message": "Título do livro atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_book_genero(book_data):
+    session = SessionLocal()
+    try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        novo_genero = book_data.get("genero")
+
+        if not id_livro or not novo_genero:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.genero = novo_genero
+        session.commit()
+        return {"message": "Gênero do livro atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def delete_book(book_data):
+    session = SessionLocal()
+    try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        
+        if not id_livro:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        session.delete(livro)
+        session.commit()
+        return {"message": "Livro removido com sucesso"}
     except Exception:
         session.rollback()
         raise
