@@ -8,6 +8,8 @@ from logic import *
 from schemas.auth import LoginInput, RegisterInput
 from schemas.usuario import *
 from schemas.livros import *
+from schemas.assinatura import *
+from schemas.avaliacao import *
 
 app = FastAPI()
 
@@ -190,6 +192,96 @@ async def update_book_genero_endpoint(book_data: UpdateBookGeneroInput):
 async def delete_book_endpoint(book_data: DeleteBookInput):
     try:
         return delete_book(book_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+## Assinatura ##
+
+@app.post("/data/assinaturas")
+async def create_assinatura_endpoint(assinatura_data: CreateAssinaturaInput):
+    try:
+        return create_assinatura(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/data/assinaturas")
+async def replace_assinatura_endpoint(assinatura_data: ReplaceAssinaturaInput):
+    try:
+        return replace_assinatura(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/assinaturas/tipo")
+async def update_assinatura_tipo_endpoint(assinatura_data: UpdateAssinaturaTipoInput):
+    try:
+        return update_assinatura_tipo(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/assinaturas/email")
+async def update_assinatura_email_endpoint(assinatura_data: UpdateAssinaturaEmailInput):
+    try:
+        return update_assinatura_email(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/assinaturas/senha")
+async def update_assinatura_senha_endpoint(assinatura_data: UpdateAssinaturaSenhaInput):
+    try:
+        return update_assinatura_senha(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/data/assinaturas")
+async def delete_assinatura_endpoint(assinatura_data: DeleteAssinaturaInput):
+    try:
+        return delete_assinatura(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+## Avaliacoes ##
+
+@app.post("/avaliacoes")
+async def create_avaliacao_endpoint(avaliacao_data: CreateAvaliacaoInput):
+    try:
+        return create_avaliacao(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/avaliacoes")
+async def replace_avaliacao_endpoint(avaliacao_data: ReplaceAvaliacaoInput):
+    try:
+        return replace_avaliacao(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/avaliacoes/comentario")
+async def update_avaliacao_comentario_endpoint(avaliacao_data: UpdateAvaliacaoComentarioInput):
+    try:
+        return update_avaliacao_comentario(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/avaliacoes/estrelas")
+async def update_avaliacao_estrelas_endpoint(avaliacao_data: UpdateAvaliacaoEstrelasInput):
+    try:
+        return update_avaliacao_estrelas(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/avaliacoes")
+async def delete_avaliacao_endpoint(avaliacao_data: DeleteAvaliacaoInput):
+    try:
+        return delete_avaliacao(avaliacao_data.model_dump())
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"message": str(exc)})
 

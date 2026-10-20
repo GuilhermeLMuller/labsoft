@@ -801,3 +801,315 @@ def delete_book(book_data):
         raise
     finally:
         session.close()
+
+
+## assinatura ##
+from models import Assinatura
+
+def create_assinatura(new_assinatura):
+    session = SessionLocal()
+    try:
+        id_tipo_assinatura = new_assinatura.get("id_tipo_assinatura")
+        email = new_assinatura.get("email")
+        senha_hash = new_assinatura.get("senha_hash")
+
+        if not id_tipo_assinatura or not email or not senha_hash:
+            raise ValueError("Faltam dados obrigatórios")
+
+        # Verifica se o e-mail já existe
+        if session.query(Assinatura).filter(Assinatura.email == email).first():
+            raise ValueError("E-mail já cadastrado")
+
+        assinatura = Assinatura(
+            id_tipo_assinatura=id_tipo_assinatura,
+            email=email,
+            senha_hash=senha_hash,
+        )
+        session.add(assinatura)
+        session.commit()
+        session.refresh(assinatura)
+
+        return {
+            "message": "Assinatura criada com sucesso",
+            "assinatura": {
+                "id_assinatura": assinatura.id_assinatura,
+                "email": assinatura.email,
+            },
+        }
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def replace_assinatura(assinatura_data):
+    session = SessionLocal()
+    try:
+        id_assinatura = assinatura_data.get("id_assinatura") or assinatura_data.get("id")
+        id_tipo_assinatura = assinatura_data.get("id_tipo_assinatura")
+        email = assinatura_data.get("email")
+        senha_hash = assinatura_data.get("senha_hash")
+
+        if not id_assinatura or not id_tipo_assinatura or not email or not senha_hash:
+            raise ValueError("Faltam dados obrigatórios")
+
+        assinatura = session.get(Assinatura, id_assinatura)
+        if not assinatura:
+            raise ValueError("Assinatura não encontrada")
+
+        assinatura.id_tipo_assinatura = id_tipo_assinatura
+        assinatura.email = email
+        assinatura.senha_hash = senha_hash
+
+        session.commit()
+        return {"message": "Assinatura atualizada por completo com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_assinatura_tipo(assinatura_data):
+    session = SessionLocal()
+    try:
+        id_assinatura = assinatura_data.get("id_assinatura") or assinatura_data.get("id")
+        novo_id_tipo = assinatura_data.get("id_tipo_assinatura")
+
+        if not id_assinatura or not novo_id_tipo:
+            raise ValueError("Faltam dados obrigatórios")
+
+        assinatura = session.get(Assinatura, id_assinatura)
+        if not assinatura:
+            raise ValueError("Assinatura não encontrada")
+
+        assinatura.id_tipo_assinatura = novo_id_tipo
+        session.commit()
+        return {"message": "Tipo de assinatura atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_assinatura_email(assinatura_data):
+    session = SessionLocal()
+    try:
+        id_assinatura = assinatura_data.get("id_assinatura") or assinatura_data.get("id")
+        novo_email = assinatura_data.get("email")
+
+        if not id_assinatura or not novo_email:
+            raise ValueError("Faltam dados obrigatórios")
+
+        assinatura = session.get(Assinatura, id_assinatura)
+        if not assinatura:
+            raise ValueError("Assinatura não encontrada")
+
+        # Verifica unicidade do novo e-mail (garante que não seja de outra pessoa)
+        email_existente = session.query(Assinatura).filter(Assinatura.email == novo_email).first()
+        if email_existente and email_existente.id_assinatura != id_assinatura:
+            raise ValueError("E-mail já está em uso por outra conta")
+
+        assinatura.email = novo_email
+        session.commit()
+        return {"message": "E-mail da assinatura atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_assinatura_senha(assinatura_data):
+    session = SessionLocal()
+    try:
+        id_assinatura = assinatura_data.get("id_assinatura") or assinatura_data.get("id")
+        nova_senha_hash = assinatura_data.get("senha_hash")
+
+        if not id_assinatura or not nova_senha_hash:
+            raise ValueError("Faltam dados obrigatórios")
+
+        assinatura = session.get(Assinatura, id_assinatura)
+        if not assinatura:
+            raise ValueError("Assinatura não encontrada")
+
+        assinatura.senha_hash = nova_senha_hash
+        session.commit()
+        return {"message": "Senha atualizada com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def delete_assinatura(assinatura_data):
+    session = SessionLocal()
+    try:
+        id_assinatura = assinatura_data.get("id_assinatura") or assinatura_data.get("id")
+        if not id_assinatura:
+            raise ValueError("Faltam dados obrigatórios")
+
+        assinatura = session.get(Assinatura, id_assinatura)
+        if not assinatura:
+            raise ValueError("Assinatura não encontrada")
+
+        session.delete(assinatura)
+        session.commit()
+        return {"message": "Assinatura removida com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+## avaliação
+from models import Avaliacao
+
+def create_avaliacao(new_avaliacao):
+    session = SessionLocal()
+    try:
+        id_usuario = new_avaliacao.get("id_usuario")
+        id_livro = new_avaliacao.get("id_livro")
+        comentario = new_avaliacao.get("comentario")
+        estrelas = new_avaliacao.get("estrelas")
+
+        if not id_usuario or not id_livro or estrelas is None:
+            raise ValueError("Faltam dados obrigatórios (id_usuario, id_livro, estrelas)")
+
+        if not (1 <= estrelas <= 5):
+            raise ValueError("A avaliação deve ser entre 1 e 5 estrelas")
+
+        avaliacao = Avaliacao(
+            id_usuario=id_usuario,
+            id_livro=id_livro,
+            comentario=comentario,
+            estrelas=estrelas,
+        )
+        session.add(avaliacao)
+        session.commit()
+        session.refresh(avaliacao)
+
+        return {
+            "message": "Avaliação criada com sucesso",
+            "avaliacao": {
+                "id_avaliacao": avaliacao.id_avaliacao,
+                "id_livro": avaliacao.id_livro,
+                "estrelas": avaliacao.estrelas,
+            },
+        }
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def replace_avaliacao(avaliacao_data):
+    session = SessionLocal()
+    try:
+        id_avaliacao = avaliacao_data.get("id_avaliacao") or avaliacao_data.get("id")
+        id_usuario = avaliacao_data.get("id_usuario")
+        id_livro = avaliacao_data.get("id_livro")
+        comentario = avaliacao_data.get("comentario")
+        estrelas = avaliacao_data.get("estrelas")
+
+        if not id_avaliacao or not id_usuario or not id_livro or estrelas is None:
+            raise ValueError("Faltam dados obrigatórios")
+
+        if not (1 <= estrelas <= 5):
+            raise ValueError("A avaliação deve ser entre 1 e 5 estrelas")
+
+        avaliacao = session.get(Avaliacao, id_avaliacao)
+        if not avaliacao:
+            raise ValueError("Avaliação não encontrada")
+
+        avaliacao.id_usuario = id_usuario
+        avaliacao.id_livro = id_livro
+        avaliacao.comentario = comentario
+        avaliacao.estrelas = estrelas
+
+        session.commit()
+        return {"message": "Avaliação atualizada por completo com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_avaliacao_comentario(avaliacao_data):
+    session = SessionLocal()
+    try:
+        id_avaliacao = avaliacao_data.get("id_avaliacao") or avaliacao_data.get("id")
+        novo_comentario = avaliacao_data.get("comentario")
+
+        if not id_avaliacao:
+            raise ValueError("Faltam dados obrigatórios (id_avaliacao)")
+
+        # Comentário pode ser None ou vazio, então não bloqueamos se for vazio, 
+        # a menos que essa seja a regra de negócio.
+
+        avaliacao = session.get(Avaliacao, id_avaliacao)
+        if not avaliacao:
+            raise ValueError("Avaliação não encontrada")
+
+        avaliacao.comentario = novo_comentario
+        session.commit()
+        return {"message": "Comentário da avaliação atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_avaliacao_estrelas(avaliacao_data):
+    session = SessionLocal()
+    try:
+        id_avaliacao = avaliacao_data.get("id_avaliacao") or avaliacao_data.get("id")
+        novas_estrelas = avaliacao_data.get("estrelas")
+
+        if not id_avaliacao or novas_estrelas is None:
+            raise ValueError("Faltam dados obrigatórios")
+
+        if not (1 <= novas_estrelas <= 5):
+            raise ValueError("A avaliação deve ser entre 1 e 5 estrelas")
+
+        avaliacao = session.get(Avaliacao, id_avaliacao)
+        if not avaliacao:
+            raise ValueError("Avaliação não encontrada")
+
+        avaliacao.estrelas = novas_estrelas
+        session.commit()
+        return {"message": "Estrelas da avaliação atualizadas com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def delete_avaliacao(avaliacao_data):
+    session = SessionLocal()
+    try:
+        id_avaliacao = avaliacao_data.get("id_avaliacao") or avaliacao_data.get("id")
+        
+        if not id_avaliacao:
+            raise ValueError("Faltam dados obrigatórios")
+
+        avaliacao = session.get(Avaliacao, id_avaliacao)
+        if not avaliacao:
+            raise ValueError("Avaliação não encontrada")
+
+        session.delete(avaliacao)
+        session.commit()
+        return {"message": "Avaliação removida com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
