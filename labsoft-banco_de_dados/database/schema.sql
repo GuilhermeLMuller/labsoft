@@ -31,7 +31,7 @@ CREATE TABLE livros (
     pais VARCHAR(100),
     linguagem VARCHAR(100),
     sinopse TEXT,
-    capa TEXT,
+    titulo VARCHAR(255),
     genero VARCHAR(100),
     restricao_de_idade SMALLINT CHECK (restricao_de_idade >= 0)
 );
