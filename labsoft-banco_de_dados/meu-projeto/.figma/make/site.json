@@ -1,0 +1,10 @@
+{
+  "description": "Provides a user-friendly interface designed for easy navigation and efficient access to core features, enhancing user experience with simplicity.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
