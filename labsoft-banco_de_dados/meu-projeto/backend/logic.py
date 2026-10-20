@@ -1113,3 +1113,221 @@ def delete_avaliacao(avaliacao_data):
         raise
     finally:
         session.close()
+
+
+## livrousuário ##
+from datetime import date
+from models import LivroUsuario
+
+def create_livro_usuario(new_livro_usuario):
+    session = SessionLocal()
+    try:
+        if not new_livro_usuario.get("id_usuario") or not new_livro_usuario.get("id_livro"):
+            raise ValueError("Faltam dados obrigatórios (id_usuario, id_livro)")
+
+        # Configura a data de visualização
+        new_livro_usuario["data_visualizado"] = date.today()
+
+        # Injeta as datas automaticamente se o booleano vier como True
+        for campo in ["lido", "baixado", "favoritado"]:
+            if new_livro_usuario.get(campo):
+                new_livro_usuario[f"data_{campo}"] = date.today()
+
+        # O modelo assumirá os defaults para o que não for passado
+        livro_usuario = LivroUsuario(**new_livro_usuario)
+        
+        session.add(livro_usuario)
+        session.commit()
+        session.refresh(livro_usuario)
+
+        return {
+            "message": "Registro de livro do usuário criado com sucesso",
+            "livro_usuario": {
+                "id_livro_usuario": livro_usuario.id_livro_usuario,
+                "id_usuario": livro_usuario.id_usuario,
+                "id_livro": livro_usuario.id_livro,
+            },
+        }
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def replace_livro_usuario(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.pop("id_livro_usuario", None) or livro_usuario_data.pop("id", None)
+        
+        if not id_livro_usuario or not livro_usuario_data.get("id_usuario") or not livro_usuario_data.get("id_livro"):
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro de livro do usuário não encontrado")
+
+        # Atualiza a data de visualização no replace
+        livro_usuario_data["data_visualizado"] = date.today()
+        
+        # Atualiza as datas dos pares caso tenham sido alteradas
+        for campo in ["lido", "baixado", "favoritado"]:
+            if campo in livro_usuario_data:
+                livro_usuario_data[f"data_{campo}"] = date.today() if livro_usuario_data[campo] else None
+
+        # Aplica todos os dados do dicionário no objeto
+        for key, value in livro_usuario_data.items():
+            setattr(livro_usuario, key, value)
+
+        session.commit()
+        return {"message": "Registro atualizado por completo com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+def update_livro_usuario_lido(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.get("id_livro_usuario") or livro_usuario_data.get("id")
+        lido = livro_usuario_data.get("lido")
+
+        if not id_livro_usuario or lido is None:
+            raise ValueError("Faltam dados obrigatórios (id_livro_usuario, lido)")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro não encontrado")
+
+        livro_usuario.lido = lido
+        livro_usuario.data_lido = date.today() if lido else None
+
+        session.commit()
+        return {"message": "Status de leitura atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_livro_usuario_baixado(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.get("id_livro_usuario") or livro_usuario_data.get("id")
+        baixado = livro_usuario_data.get("baixado")
+
+        if not id_livro_usuario or baixado is None:
+            raise ValueError("Faltam dados obrigatórios (id_livro_usuario, baixado)")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro não encontrado")
+
+        livro_usuario.baixado = baixado
+        livro_usuario.data_baixado = date.today() if baixado else None
+
+        session.commit()
+        return {"message": "Status de download atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_livro_usuario_favoritado(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.get("id_livro_usuario") or livro_usuario_data.get("id")
+        favoritado = livro_usuario_data.get("favoritado")
+
+        if not id_livro_usuario or favoritado is None:
+            raise ValueError("Faltam dados obrigatórios (id_livro_usuario, favoritado)")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro não encontrado")
+
+        livro_usuario.favoritado = favoritado
+        livro_usuario.data_favoritado = date.today() if favoritado else None
+
+        session.commit()
+        return {"message": "Status de favorito atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_livro_usuario_lendo(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.get("id_livro_usuario") or livro_usuario_data.get("id")
+        lendo = livro_usuario_data.get("lendo")
+
+        if not id_livro_usuario or lendo is None:
+            raise ValueError("Faltam dados obrigatórios (id_livro_usuario, lendo)")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro não encontrado")
+
+        livro_usuario.lendo = lendo
+        session.commit()
+        return {"message": "Status 'lendo' atualizado com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_livro_usuario_pagina(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.get("id_livro_usuario") or livro_usuario_data.get("id")
+        pagina_lendo = livro_usuario_data.get("pagina_lendo")
+
+        if not id_livro_usuario or pagina_lendo is None:
+            raise ValueError("Faltam dados obrigatórios (id_livro_usuario, pagina_lendo)")
+
+        if pagina_lendo < 0:
+            raise ValueError("A página não pode ser negativa")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro não encontrado")
+
+        livro_usuario.pagina_lendo = pagina_lendo
+        session.commit()
+        return {"message": "Página atual de leitura atualizada com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def delete_livro_usuario(livro_usuario_data):
+    session = SessionLocal()
+    try:
+        id_livro_usuario = livro_usuario_data.get("id_livro_usuario") or livro_usuario_data.get("id")
+        
+        if not id_livro_usuario:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro_usuario = session.get(LivroUsuario, id_livro_usuario)
+        if not livro_usuario:
+            raise ValueError("Registro não encontrado")
+
+        session.delete(livro_usuario)
+        session.commit()
+        return {"message": "Registro removido com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

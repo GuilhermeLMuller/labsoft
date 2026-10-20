@@ -10,6 +10,7 @@ from schemas.usuario import *
 from schemas.livros import *
 from schemas.assinatura import *
 from schemas.avaliacao import *
+from schemas.livrousuario import *
 
 app = FastAPI()
 
@@ -285,6 +286,73 @@ async def delete_avaliacao_endpoint(avaliacao_data: DeleteAvaliacaoInput):
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
+
+## livrousuario ##
+@app.post("/data/livros_usuario")
+async def create_livro_usuario_endpoint(data: CreateLivroUsuarioInput):
+    try:
+        return create_livro_usuario(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/data/livros_usuario")
+async def replace_livro_usuario_endpoint(data: ReplaceLivroUsuarioInput):
+    try:
+        return replace_livro_usuario(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/lido")
+async def update_livro_usuario_lido_endpoint(data: UpdateLidoInput):
+    try:
+        return update_livro_usuario_lido(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/baixado")
+async def update_livro_usuario_baixado_endpoint(data: UpdateBaixadoInput):
+    try:
+        return update_livro_usuario_baixado(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/favoritado")
+async def update_livro_usuario_favoritado_endpoint(data: UpdateFavoritadoInput):
+    try:
+        return update_livro_usuario_favoritado(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/lendo")
+async def update_livro_usuario_lendo_endpoint(data: UpdateLendoInput):
+    try:
+        return update_livro_usuario_lendo(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/pagina")
+async def update_livro_usuario_pagina_endpoint(data: UpdatePaginaLendoInput):
+    try:
+        return update_livro_usuario_pagina(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/data/livros_usuario")
+async def delete_livro_usuario_endpoint(data: DeleteLivroUsuarioInput):
+    try:
+        return delete_livro_usuario(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+
 #@app.put      =>Substituir
 #@app.patch    =>Atualizar parcialmente 
 #@app.delete   =>DELETE
@@ -344,3 +412,4 @@ async def get_livro_usuario(
 ):
     # Implement your logic to retrieve livro_usuario here
     return list_livro_usuario(id_usuario=id_usuario, id_livro=id_livro, offset=offset, limit=limit)  # Placeholder response
+
