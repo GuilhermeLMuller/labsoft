@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createBook, getDatabaseRows, PAGE_SIZE } from "../api/database";
 
 const entities = {
   livros: {
@@ -12,8 +13,8 @@ const entities = {
       { key: "pais", label: "País", type: "text" },
       { key: "linguagem", label: "Idioma", type: "text" },
       { key: "genero", label: "Gênero", type: "text" },
-      { key: "restricao_de_idade", label: "Classificação etária", type: "number" },
     ],
+    canCreate: true,
     columns: [
       { key: "id_livro", label: "ID", width: "id" },
       { key: "titulo", label: "Título" },
@@ -35,12 +36,6 @@ const entities = {
       { key: "genero", label: "Gênero" },
       { key: "restricao_de_idade", label: "Classificação etária", type: "number", min: 0 },
     ],
-    rows: [
-      { id_livro: 1, titulo: "Olhos d’água", autor: "Conceição Evaristo", ano_de_publicacao: 2014, pais: "Brasil", linguagem: "Português", genero: "Romance", restricao_de_idade: 14 },
-      { id_livro: 2, titulo: "Memórias Póstumas de Brás Cubas", autor: "Machado de Assis", ano_de_publicacao: 1881, pais: "Brasil", linguagem: "Português", genero: "Clássico", restricao_de_idade: 12 },
-      { id_livro: 3, titulo: "Ensaio sobre a Cegueira", autor: "José Saramago", ano_de_publicacao: 1995, pais: "Portugal", linguagem: "Português", genero: "Ficção", restricao_de_idade: 14 },
-      { id_livro: 4, titulo: "A Hora da Estrela", autor: "Clarice Lispector", ano_de_publicacao: 1977, pais: "Brasil", linguagem: "Português", genero: "Ficção", restricao_de_idade: 14 },
-    ],
   },
   assinatura: {
     label: "Assinaturas",
@@ -58,11 +53,6 @@ const entities = {
     fields: [
       { key: "email", label: "E-mail", type: "email", required: true },
       { key: "id_tipo_assinatura", label: "ID do tipo de assinatura", type: "number", min: 1, required: true },
-    ],
-    rows: [
-      { id_assinatura: 1, email: "ana@exemplo.com", id_tipo_assinatura: 1 },
-      { id_assinatura: 2, email: "bruno@exemplo.com", id_tipo_assinatura: 2 },
-      { id_assinatura: 3, email: "carla@exemplo.com", id_tipo_assinatura: 1 },
     ],
   },
   tipo_assinatura: {
@@ -85,17 +75,8 @@ const entities = {
       { key: "valor", label: "Valor (R$)", type: "number", min: 0, step: "0.01", required: true },
       { key: "maximo_acessos", label: "Máximo de acessos", type: "number", min: 1, required: true },
     ],
-    rows: [
-      { id_tipo_assinatura: 1, nome: "Leitor", valor: 19.9, maximo_acessos: 1 },
-      { id_tipo_assinatura: 2, nome: "Família", valor: 39.9, maximo_acessos: 5 },
-      { id_tipo_assinatura: 3, nome: "Estudante", valor: 12.9, maximo_acessos: 1 },
-    ],
   },
 };
-
-const initialRows = Object.fromEntries(
-  Object.entries(entities).map(([key, entity]) => [key, entity.rows]),
-);
 
 function formatValue(value, format) {
   if (value === null || value === undefined || value === "") return "—";
@@ -112,7 +93,7 @@ function getUserName(user) {
 
 export default function DatabasePage({ user, onLogout }) {
   const [selectedEntity, setSelectedEntity] = useState("livros");
-  const [rowsByEntity, setRowsByEntity] = useState(initialRows);
+  const [rowsByEntity, setRowsByEntity] = useState({ livros: [], assinatura: [], tipo_assinatura: [] });
   const [filterField, setFilterField] = useState(entities.livros.filters[0].key);
   const [operator, setOperator] = useState("contains");
   const [filterValue, setFilterValue] = useState("");
@@ -121,31 +102,69 @@ export default function DatabasePage({ user, onLogout }) {
   const [newRecord, setNewRecord] = useState({});
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
 
   const entity = entities[selectedEntity];
   const rows = rowsByEntity[selectedEntity];
   const currentFilter = entity.filters.find((field) => field.key === filterField) ?? entity.filters[0];
+  const loadRows = useCallback(async ({ entityKey = selectedEntity, filter = activeFilter, offset = 0, append = false, signal } = {}) => {
+    try {
+      const result = await getDatabaseRows(entityKey, { filter, offset, signal });
+      setRowsByEntity((current) => ({
+        ...current,
+        [entityKey]: append ? [...current[entityKey], ...result] : result,
+      }));
+      setHasMore(result.length === PAGE_SIZE);
+    } catch (loadError) {
+      if (loadError.name !== "AbortError") {
+        setError(loadError.message || "Não foi possível carregar os registros.");
+        if (!append) setRowsByEntity((current) => ({ ...current, [entityKey]: [] }));
+        setHasMore(false);
+      }
+    } finally {
+      if (!signal?.aborted) setIsLoading(false);
+    }
+  }, [activeFilter, selectedEntity]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getDatabaseRows(selectedEntity, { filter: activeFilter, offset: 0, signal: controller.signal })
+      .then((result) => {
+        setRowsByEntity((current) => ({ ...current, [selectedEntity]: result }));
+        setHasMore(result.length === PAGE_SIZE);
+      })
+      .catch((loadError) => {
+        if (loadError.name !== "AbortError") {
+          setError(loadError.message || "Não foi possível carregar os registros.");
+          setRowsByEntity((current) => ({ ...current, [selectedEntity]: [] }));
+          setHasMore(false);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeFilter, selectedEntity]);
+
   const filteredRows = useMemo(() => {
-    if (!activeFilter?.value) return rows;
+    if (selectedEntity !== "tipo_assinatura" || !activeFilter?.value) return rows;
 
     return rows.filter((row) => {
       const cell = row[activeFilter.field];
       if (cell === null || cell === undefined) return false;
 
-      if (activeFilter.operator === "contains") {
-        return String(cell).toLocaleLowerCase("pt-BR").includes(activeFilter.value.toLocaleLowerCase("pt-BR"));
-      }
-
-      const target = Number(activeFilter.value);
-      const value = Number(cell);
-      if (activeFilter.operator === "gte") return value >= target;
-      if (activeFilter.operator === "lte") return value <= target;
-      return String(cell).toLocaleLowerCase("pt-BR") === activeFilter.value.toLocaleLowerCase("pt-BR");
+      const filterValue = activeFilter.value.toLocaleLowerCase("pt-BR");
+      return activeFilter.operator === "contains"
+        ? String(cell).toLocaleLowerCase("pt-BR").includes(filterValue)
+        : String(cell).toLocaleLowerCase("pt-BR") === filterValue;
     });
-  }, [activeFilter, rows]);
+  }, [activeFilter, rows, selectedEntity]);
 
   function handleEntityChange(event) {
     const nextEntity = event.target.value;
+    setIsLoading(true);
     setSelectedEntity(nextEntity);
     setFilterField(entities[nextEntity].filters[0].key);
     setOperator("contains");
@@ -158,16 +177,25 @@ export default function DatabasePage({ user, onLogout }) {
 
   function handleSearch(event) {
     event.preventDefault();
-    setActiveFilter({ field: filterField, operator, value: filterValue.trim() });
+    const nextFilter = filterValue.trim() ? { field: filterField, operator, value: filterValue.trim() } : null;
+    if (nextFilter || activeFilter) setIsLoading(true);
+    setActiveFilter(nextFilter);
     setNotice("");
     setError("");
   }
 
   function clearSearch() {
     setFilterValue("");
+    if (activeFilter) setIsLoading(true);
     setActiveFilter(null);
     setNotice("");
     setError("");
+  }
+
+  function handleLoadMore() {
+    setIsLoading(true);
+    setError("");
+    loadRows({ offset: rows.length, append: true });
   }
 
   function openForm() {
@@ -177,17 +205,13 @@ export default function DatabasePage({ user, onLogout }) {
     setIsFormOpen(true);
   }
 
-  function handleCreate(event) {
+  async function handleCreate(event) {
     event.preventDefault();
     setError("");
-    const idColumn = entity.columns.find((column) => column.key.startsWith("id_"))?.key;
-    if (!idColumn) {
-      setError("Não foi possível identificar o campo de identificação deste registro.");
-      return;
-    }
+    setIsSaving(true);
+    const wasFiltered = Boolean(activeFilter);
 
-    const id = Math.max(0, ...rows.map((row) => Number(row[idColumn]) || 0)) + 1;
-    const record = { [idColumn]: id };
+    const record = {};
     for (const field of entity.fields) {
       const value = newRecord[field.key];
       if (value !== undefined && value !== "") {
@@ -195,13 +219,23 @@ export default function DatabasePage({ user, onLogout }) {
       }
     }
 
-    setRowsByEntity((current) => ({
-      ...current,
-      [selectedEntity]: [record, ...current[selectedEntity]],
-    }));
-    setIsFormOpen(false);
-    setNewRecord({});
-    setNotice("Registro adicionado à demonstração. Ele ainda não foi salvo no banco de dados.");
+    try {
+      await createBook(record);
+      setIsFormOpen(false);
+      setNewRecord({});
+      setFilterValue("");
+      setActiveFilter(null);
+      setNotice("Livro salvo no banco de dados.");
+      setIsLoading(true);
+      setError("");
+      if (!wasFiltered) {
+        await loadRows({ entityKey: "livros", filter: null, offset: 0 });
+      }
+    } catch (createError) {
+      setError(createError.message || "Não foi possível salvar o livro.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -212,7 +246,7 @@ export default function DatabasePage({ user, onLogout }) {
           <span>livraria<span className="brand-accent">.</span></span>
         </a>
         <div className="topbar-right">
-          <span className="environment-badge"><span aria-hidden="true" />Modo demonstração</span>
+          <span className="environment-badge"><span aria-hidden="true" />Banco de dados</span>
           <span className="user-greeting">Olá, {getUserName(user)}</span>
           <button className="logout-button" type="button" onClick={onLogout}>Sair</button>
         </div>
@@ -226,15 +260,17 @@ export default function DatabasePage({ user, onLogout }) {
               <h1>Explore seus dados<span>.</span></h1>
               <p>Consulte e organize os registros do seu catálogo em um só lugar.</p>
             </div>
-            <button className="add-button" type="button" onClick={openForm}>
-              <span aria-hidden="true">+</span> Adicionar registro
-            </button>
+            {entity.canCreate && (
+              <button className="add-button" type="button" onClick={openForm}>
+                <span aria-hidden="true">+</span> Adicionar registro
+              </button>
+            )}
           </div>
         </section>
 
         <aside className="demo-notice" role="status">
           <span className="notice-icon" aria-hidden="true">i</span>
-          <p><strong>Prévia da interface</strong> — estes registros são dados de exemplo. As consultas e alterações ficam apenas nesta sessão; a conexão com o banco será feita pelo back-end.</p>
+          <p><strong>Dados do backend</strong> — consultas são feitas nas rotas disponíveis. A criação de registros está habilitada para livros.</p>
         </aside>
 
         <section className="workspace-card" aria-labelledby="records-heading">
@@ -280,18 +316,9 @@ export default function DatabasePage({ user, onLogout }) {
               <label>
                 <span>Condição</span>
                 <select value={operator} onChange={(event) => setOperator(event.target.value)}>
-                  {currentFilter.type === "number" ? (
-                    <>
-                      <option value="equals">Igual a</option>
-                      <option value="gte">Maior ou igual a</option>
-                      <option value="lte">Menor ou igual a</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="contains">Contém</option>
-                      <option value="equals">Igual a</option>
-                    </>
-                  )}
+                  {currentFilter.type === "number"
+                    ? <option value="equals">Igual a</option>
+                    : <option value="contains">Contém</option>}
                 </select>
               </label>
               <label className="filter-value">
@@ -329,12 +356,19 @@ export default function DatabasePage({ user, onLogout }) {
                     ))}
                   </tr>
                 ))}
-                {filteredRows.length === 0 && (
+                {!isLoading && filteredRows.length === 0 && (
                   <tr>
                     <td className="empty-state" colSpan={entity.columns.length}>
                       <span className="empty-icon" aria-hidden="true">⌕</span>
-                      <strong>Nenhum registro encontrado</strong>
-                      <span>Tente mudar os filtros ou limpar a busca.</span>
+                      <strong>{error ? "Não foi possível carregar os registros" : "Nenhum registro encontrado"}</strong>
+                      {!error && <span>Tente mudar os filtros ou limpar a busca.</span>}
+                    </td>
+                  </tr>
+                )}
+                {isLoading && filteredRows.length === 0 && (
+                  <tr>
+                    <td className="empty-state" colSpan={entity.columns.length}>
+                      <strong>Carregando registros...</strong>
                     </td>
                   </tr>
                 )}
@@ -343,11 +377,23 @@ export default function DatabasePage({ user, onLogout }) {
           </div>
 
           <footer className="table-footer">
-            <span>Exibindo {filteredRows.length} de {rows.length} registros</span>
-            <span>Atualizado nesta sessão</span>
+            <span>{filteredRows.length} registros carregados do backend</span>
+            <span>{isLoading ? "Atualizando..." : "Dados atualizados"}</span>
           </footer>
+          {hasMore && (
+            <div className="filter-actions">
+              <button
+                type="button"
+                className="clear-button"
+                onClick={handleLoadMore}
+                disabled={isLoading}
+              >
+                {isLoading ? "Carregando..." : "Carregar mais"}
+              </button>
+            </div>
+          )}
         </section>
-        <p className="page-footer">Os dados de exemplo são descartados ao sair desta página.</p>
+        <p className="page-footer">Os registros exibidos são consultados no backend.</p>
       </div>
 
       {isFormOpen && (
@@ -359,7 +405,7 @@ export default function DatabasePage({ user, onLogout }) {
               <div>
                 <p className="section-kicker">NOVO REGISTRO</p>
                 <h2 id="modal-title">Adicionar {entity.singular}</h2>
-                <p>Preencha os dados abaixo para incluir na prévia.</p>
+                <p>Preencha os dados para salvar o livro no banco.</p>
               </div>
               <button type="button" className="modal-close" onClick={() => setIsFormOpen(false)} aria-label="Fechar">×</button>
             </div>
@@ -387,10 +433,13 @@ export default function DatabasePage({ user, onLogout }) {
                   )}
                 </label>
               ))}
-              <p className="form-note">O identificador é gerado automaticamente nesta demonstração.</p>
+              {error && <p className="feedback-error" role="alert">{error}</p>}
+              <p className="form-note">O identificador será gerado pelo banco de dados.</p>
               <div className="modal-actions">
                 <button type="button" className="cancel-button" onClick={() => setIsFormOpen(false)}>Cancelar</button>
-                <button type="submit" className="search-button">Adicionar registro</button>
+                <button type="submit" className="search-button" disabled={isSaving}>
+                  {isSaving ? "Salvando..." : "Adicionar registro"}
+                </button>
               </div>
             </form>
           </section>

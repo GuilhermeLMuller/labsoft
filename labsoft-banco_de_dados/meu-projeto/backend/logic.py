@@ -23,6 +23,111 @@ def list_subscription_types():
         session.close()
 
 
+def list_assinaturas(email=None, id_tipo_assinatura=None, offset=0, limit=20):
+    session = SessionLocal()
+    try:
+        query = session.query(models.Assinatura)
+        if email:
+            query = query.filter(models.Assinatura.email.ilike(f"%{email}%"))
+        if id_tipo_assinatura is not None:
+            query = query.filter(
+                models.Assinatura.id_tipo_assinatura == id_tipo_assinatura
+            )
+        assinaturas = (
+            query.order_by(models.Assinatura.id_assinatura)
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "id_assinatura": assinatura.id_assinatura,
+                "email": assinatura.email,
+                "id_tipo_assinatura": assinatura.id_tipo_assinatura,
+            }
+            for assinatura in assinaturas
+        ]
+    finally:
+        session.close()
+
+
+def list_livros(
+    genero=None,
+    autor=None,
+    pais=None,
+    linguagem=None,
+    titulo=None,
+    ano_publicacao=None,
+    offset=0,
+    limit=20,
+):
+    session = SessionLocal()
+    try:
+        query = session.query(models.Livro)
+        for field, value in (
+            ("genero", genero),
+            ("autor", autor),
+            ("pais", pais),
+            ("linguagem", linguagem),
+            ("titulo", titulo),
+        ):
+            if value:
+                query = query.filter(getattr(models.Livro, field).ilike(f"%{value}%"))
+        if ano_publicacao is not None:
+            query = query.filter(
+                models.Livro.ano_de_publicacao == ano_publicacao
+            )
+        livros = (
+            query.order_by(models.Livro.id_livro)
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "id_livro": livro.id_livro,
+                "titulo": livro.titulo,
+                "autor": livro.autor,
+                "ano_de_publicacao": livro.ano_de_publicacao,
+                "pais": livro.pais,
+                "linguagem": livro.linguagem,
+                "sinopse": livro.sinopse,
+                "capa": livro.capa,
+                "genero": livro.genero,
+                "restricao_de_idade": livro.restricao_de_idade,
+            }
+            for livro in livros
+        ]
+    finally:
+        session.close()
+
+
+def create_book(book_data):
+    session = SessionLocal()
+    try:
+        livro = models.Livro(**book_data)
+        session.add(livro)
+        session.commit()
+        session.refresh(livro)
+        return {
+            "id_livro": livro.id_livro,
+            "titulo": livro.titulo,
+            "autor": livro.autor,
+            "ano_de_publicacao": livro.ano_de_publicacao,
+            "pais": livro.pais,
+            "linguagem": livro.linguagem,
+            "sinopse": livro.sinopse,
+            "capa": livro.capa,
+            "genero": livro.genero,
+            "restricao_de_idade": livro.restricao_de_idade,
+        }
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 def register_account(new_account):
     session = SessionLocal()
     try:

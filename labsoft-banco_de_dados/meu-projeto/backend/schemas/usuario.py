@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
+from typing import Dict, List, Optional
 
 class CreateUserInput(BaseModel):
     id_assinatura: int
