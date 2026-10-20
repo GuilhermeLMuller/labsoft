@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { fetchSubscriptionPlans, login, register, type SubscriptionPlan } from "./api"
 
 export type AuthMode = "login" | "signup"
 
@@ -42,9 +43,27 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([])
+  const [subscriptionTypeId, setSubscriptionTypeId] = useState<number | "">("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     setErrors({})
+    if (mode !== "signup") return
+
+    let active = true
+    fetchSubscriptionPlans()
+      .then((availablePlans) => {
+        if (!active) return
+        setPlans(availablePlans)
+        setSubscriptionTypeId((current) => current || availablePlans[0]?.id || "")
+      })
+      .catch((error: Error) => {
+        if (active) setErrors({ form: error.message })
+      })
+    return () => {
+      active = false
+    }
   }, [mode])
 
   useEffect(() => {
@@ -57,16 +76,27 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
     }
   }, [onClose])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const next: Record<string, string> = {}
     if (isSignup && name.trim().length < 2) next.name = "Informe seu nome."
     if (!/^\S+@\S+\.\S+$/.test(email)) next.email = "Digite um e-mail válido."
     if (password.length < 8) next.password = "A senha precisa ter ao menos 8 caracteres."
+    if (isSignup && !subscriptionTypeId) next.subscription = "Selecione um plano."
     setErrors(next)
-    if (Object.keys(next).length === 0) {
-      const display = isSignup ? name.trim().split(" ")[0] : email.split("@")[0]
-      onSuccess(display.charAt(0).toUpperCase() + display.slice(1))
+    if (Object.keys(next).length > 0) return
+
+    setIsSubmitting(true)
+    try {
+      const response = isSignup
+        ? await register(name.trim(), email, password, Number(subscriptionTypeId))
+        : await login(email, password)
+      const display = response.user?.name || response.assinatura?.name || email.split("@")[0]
+      onSuccess(display)
+    } catch (error) {
+      setErrors({ form: error instanceof Error ? error.message : "Não foi possível concluir a operação." })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -158,6 +188,26 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
                 <input autoComplete="name" className={inputClass} onChange={(e) => setName(e.target.value)} placeholder="Marina Souza" value={name} />
               </Field>
             )}
+            {isSignup && (
+              <Field error={errors.subscription} label="Plano">
+                <select
+                  className={inputClass}
+                  disabled={plans.length === 0}
+                  onChange={(event) => setSubscriptionTypeId(Number(event.target.value))}
+                  value={subscriptionTypeId}
+                >
+                  {plans.length === 0 ? (
+                    <option value="">Carregando planos...</option>
+                  ) : (
+                    plans.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} - R$ {plan.price.toFixed(2).replace(".", ",")}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </Field>
+            )}
             <Field error={errors.email} label="E-mail">
               <input autoComplete="email" className={inputClass} onChange={(e) => setEmail(e.target.value)} placeholder="voce@exemplo.com" type="email" value={email} />
             </Field>
@@ -197,11 +247,17 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
               </div>
             )}
 
+            {errors.form && (
+              <p className="text-[13px] leading-relaxed text-[#a8402b]" role="alert">
+                {errors.form}
+              </p>
+            )}
             <button
               className="h-12 w-full rounded-full bg-[#245947] text-[15px] font-bold text-white transition hover:bg-[#1b4637] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#245947]"
+              disabled={isSubmitting || (isSignup && plans.length === 0)}
               type="submit"
             >
-              {isSignup ? "Criar conta" : "Entrar"}
+              {isSubmitting ? "Aguarde..." : isSignup ? "Criar conta" : "Entrar"}
             </button>
           </form>
 

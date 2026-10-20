@@ -105,6 +105,12 @@ def login_account(login_data):
             "message": "Login realizado com sucesso",
             "user": {
                 "id": assinatura.id_assinatura,
+                "name": (
+                    session.query(models.Usuario.nome)
+                    .filter(models.Usuario.id_assinatura == assinatura.id_assinatura)
+                    .scalar()
+                    or email.split("@")[0]
+                ),
                 "email": assinatura.email,
             },
         }
