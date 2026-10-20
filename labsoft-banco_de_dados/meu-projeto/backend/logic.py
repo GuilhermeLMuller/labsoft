@@ -1,3 +1,5 @@
+from sqlalchemy import func
+
 from database import SessionLocal
 import models
 
@@ -229,23 +231,40 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
         ]
     finally:
         session.close()
-def list_avaliacoes(id_usuario = None, id_livro = None, estrelas = None, offset: int = 0, limit: int = 20):
+def list_avaliacoes(
+    id_usuario=None,
+    id_livro=None,
+    estrelas=None,
+    offset: int = 0,
+    limit: int = 20,
+):
     session = SessionLocal()
     try:
-        avaliacoes = session.query(models.Avaliacao)
-        if id_usuario:
-            avaliacoes = avaliacoes.filter(models.Avaliacao.id_usuario == id_usuario)
-        if id_livro:
-            avaliacoes = avaliacoes.filter(models.Avaliacao.id_livro == id_livro)
+        query = (
+            session.query(
+                models.Avaliacao,
+                models.Usuario.nome.label("nome_usuario"),
+            )
+            .join(
+                models.Usuario,
+                models.Usuario.id_usuario == models.Avaliacao.id_usuario,
+            )
+        )
+
+        if id_usuario is not None:
+            query = query.filter(models.Avaliacao.id_usuario == id_usuario)
+        if id_livro is not None:
+            query = query.filter(models.Avaliacao.id_livro == id_livro)
         if estrelas is not None:
-            avaliacoes = avaliacoes.filter(models.Avaliacao.estrelas == estrelas)
-        total = avaliacoes.count()
-        avaliacoes = (
-            avaliacoes.order_by(models.Avaliacao.id_avaliacao)
+            query = query.filter(models.Avaliacao.estrelas == estrelas)
+
+        resultados = (
+            query.order_by(models.Avaliacao.id_avaliacao)
             .offset(offset)
             .limit(limit)
             .all()
         )
+
         return [
             {
                 "id": avaliacao.id_avaliacao,
@@ -253,8 +272,9 @@ def list_avaliacoes(id_usuario = None, id_livro = None, estrelas = None, offset:
                 "id_livro": avaliacao.id_livro,
                 "rating": avaliacao.estrelas,
                 "comment": avaliacao.comentario,
+                "nome_usuario": nome_usuario,
             }
-            for avaliacao in avaliacoes
+            for avaliacao, nome_usuario in resultados
         ]
     finally:
         session.close()
@@ -799,5 +819,42 @@ def delete_book(book_data):
     except Exception:
         session.rollback()
         raise
+    finally:
+        session.close()
+def get_livro(id_livro):
+    session=SessionLocal()
+    try:
+            livros = session.query(models.Livro)
+            livro = livros.filter(models.Livro.id_livro == id_livro).first()
+            if livro is None:
+                raise ValueError("Livro não encontrado")
+            return {
+                    "id": livro.id_livro,
+                    "titulo": livro.titulo,
+                    "autor": livro.autor,
+                    "ano_de_publicação": livro.ano_de_publicacao,
+                    "genero": livro.genero,
+                    "pais": livro.pais,
+                    "sinopse": livro.sinopse,
+                    "lingua": livro.linguagem,
+                }
+    finally:
+        session.close()
+def get_livro_estatisticas(id_livro):
+    session=SessionLocal()
+    try:
+            livros = session.query(models.Livro)
+            livro = livros.filter(models.Livro.id_livro == id_livro).first()
+            if livro is None:
+                raise ValueError("Livro não encontrado")
+            downloads = session.query(models.LivroUsuario).filter(models.LivroUsuario.id_livro == id_livro, models.LivroUsuario.baixado == True).count()
+            favoritos = session.query(models.LivroUsuario).filter(models.LivroUsuario.id_livro == id_livro, models.LivroUsuario.favoritado == True).count()
+            media_estrelas = session.query(models.Avaliacao).filter(models.Avaliacao.id_livro == id_livro).with_entities(func.avg(models.Avaliacao.estrelas)).scalar()
+            return {
+                    "id": livro.id_livro,
+                    "downloads": downloads,
+                    "favoritos": favoritos,
+                    "media_estrelas": media_estrelas if media_estrelas is not None else 0,
+                }
     finally:
         session.close()

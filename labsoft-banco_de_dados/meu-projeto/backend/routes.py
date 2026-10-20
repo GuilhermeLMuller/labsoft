@@ -252,3 +252,21 @@ async def get_livro_usuario(
 ):
     # Implement your logic to retrieve livro_usuario here
     return list_livro_usuario(id_usuario=id_usuario, id_livro=id_livro, offset=offset, limit=limit)  # Placeholder response
+
+
+
+#REQUESTS A PÁGINA QUE APARECE AO CLICAR NO LIVRO A SEGUIR, para buscar as avaiações use /data/avaliacoes?id_livro={id_livro}
+
+@app.get("/livro/{id_livro}")
+async def get_livro_by_id(id_livro: int):
+    try:
+        return get_livro(id_livro)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
+@app.get("/livro/{id_livro}/estatisticas")
+async def get_estatisticas_livro(id_livro: int):
+    try:
+        return get_livro_estatisticas(id_livro)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
+    
