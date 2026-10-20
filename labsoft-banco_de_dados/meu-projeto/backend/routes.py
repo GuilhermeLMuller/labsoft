@@ -246,7 +246,7 @@ async def delete_assinatura_endpoint(assinatura_data: DeleteAssinaturaInput):
 
 ## Avaliacoes ##
 
-@app.post("/avaliacoes")
+@app.post("/data/avaliacoes")
 async def create_avaliacao_endpoint(avaliacao_data: CreateAvaliacaoInput):
     try:
         return create_avaliacao(avaliacao_data.model_dump())
@@ -254,7 +254,7 @@ async def create_avaliacao_endpoint(avaliacao_data: CreateAvaliacaoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.put("/avaliacoes")
+@app.put("/data/avaliacoes")
 async def replace_avaliacao_endpoint(avaliacao_data: ReplaceAvaliacaoInput):
     try:
         return replace_avaliacao(avaliacao_data.model_dump())
@@ -262,7 +262,7 @@ async def replace_avaliacao_endpoint(avaliacao_data: ReplaceAvaliacaoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/avaliacoes/comentario")
+@app.patch("/data/avaliacoes/comentario")
 async def update_avaliacao_comentario_endpoint(avaliacao_data: UpdateAvaliacaoComentarioInput):
     try:
         return update_avaliacao_comentario(avaliacao_data.model_dump())
@@ -270,7 +270,7 @@ async def update_avaliacao_comentario_endpoint(avaliacao_data: UpdateAvaliacaoCo
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/avaliacoes/estrelas")
+@app.patch("/data/avaliacoes/estrelas")
 async def update_avaliacao_estrelas_endpoint(avaliacao_data: UpdateAvaliacaoEstrelasInput):
     try:
         return update_avaliacao_estrelas(avaliacao_data.model_dump())
@@ -278,7 +278,7 @@ async def update_avaliacao_estrelas_endpoint(avaliacao_data: UpdateAvaliacaoEstr
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.delete("/avaliacoes")
+@app.delete("/data/avaliacoes")
 async def delete_avaliacao_endpoint(avaliacao_data: DeleteAvaliacaoInput):
     try:
         return delete_avaliacao(avaliacao_data.model_dump())
