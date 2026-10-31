@@ -2,7 +2,7 @@ from sqlalchemy import func
 
 from database import SessionLocal
 import models
-
+from storage import *
 
 def list_subscription_types():
     session = SessionLocal()
@@ -856,5 +856,23 @@ def get_livro_estatisticas(id_livro):
                     "favoritos": favoritos,
                     "media_estrelas": media_estrelas if media_estrelas is not None else 0,
                 }
+    finally:
+        session.close()
+def ler_livro_pdf(id_livro):
+    session = SessionLocal()
+    try:
+        livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
+        if not livro:
+            raise ValueError("Livro não encontrado")
+        return {"path": book_path(id_livro), "titulo": livro.titulo}
+    finally:
+        session.close()
+def ler_livro_capa(id_livro):
+    session = SessionLocal()
+    try:
+        livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
+        if not livro:
+            raise ValueError("Livro não encontrado")
+        return book_cover_path(id_livro)
     finally:
         session.close()
