@@ -49,6 +49,31 @@ def create_book(book_data):
     finally:
         session.close()
 
+def create_book(book_data):
+    session = SessionLocal()
+    try:
+        livro = models.Livro(**book_data)
+        session.add(livro)
+        session.commit()
+        session.refresh(livro)
+        return {
+            "id_livro": livro.id_livro,
+            "titulo": livro.titulo,
+            "autor": livro.autor,
+            "ano_de_publicacao": livro.ano_de_publicacao,
+            "pais": livro.pais,
+            "linguagem": livro.linguagem,
+            "sinopse": livro.sinopse,
+            "capa": livro.capa,
+            "genero": livro.genero,
+            "restricao_de_idade": livro.restricao_de_idade,
+        }
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
 
 def register_account(new_account):
     session = SessionLocal()
@@ -132,6 +157,12 @@ def login_account(login_data):
             "message": "Login realizado com sucesso",
             "user": {
                 "id": assinatura.id_assinatura,
+                "name": (
+                    session.query(models.Usuario.nome)
+                    .filter(models.Usuario.id_assinatura == assinatura.id_assinatura)
+                    .scalar()
+                    or email.split("@")[0]
+                ),
                 "email": assinatura.email,
             },
         }

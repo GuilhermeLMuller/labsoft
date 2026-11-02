@@ -1,47 +1,36 @@
-:root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #25312d;
-  background: #f5f6f4;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap");
+@import "tailwindcss";
 
-  font-optical-sizing: auto;
-  font-weight: 400;
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+  --font-serif: "Lora", serif;
 }
 
-* {
-  box-sizing: border-box;
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  min-width: 320px;
+  font-family: "DM Sans", sans-serif;
+  background: #f8f5ef;
 }
 
 button,
-input,
-select,
-textarea {
-  font: inherit;
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
-select {
+a {
   cursor: pointer;
 }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-a:focus-visible {
-  outline: 3px solid rgba(47, 111, 85, 0.3);
-  outline-offset: 2px;
-}
-
-#root {
-  min-height: 100vh;
+::selection {
+  background: #245947;
+  color: #fff;
 }
