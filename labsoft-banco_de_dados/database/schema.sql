@@ -48,15 +48,20 @@ CREATE TABLE livro_usuario (
     id_livro_usuario INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_usuario INTEGER NOT NULL REFERENCES usuario (id_usuario),
     id_livro INTEGER NOT NULL REFERENCES livros (id_livro),
-    lido BOOLEAN NOT NULL DEFAULT FALSE,
-    baixado BOOLEAN NOT NULL DEFAULT FALSE,
-    data_lido DATE,
-    data_baixado DATE,
-    lendo BOOLEAN NOT NULL DEFAULT FALSE,
-    pagina_lendo INTEGER CHECK (pagina_lendo >= 0),
-    data_favoritado DATE,
-    favoritado BOOLEAN NOT NULL DEFAULT FALSE,
-    visualizado BOOLEAN NOT NULL DEFAULT FALSE,
     data_visualizado DATE,
+
+    lido BOOLEAN NOT NULL DEFAULT FALSE,
+    data_lido DATE,
+
+    baixado BOOLEAN NOT NULL DEFAULT FALSE,
+    data_baixado DATE,
+
+    lendo BOOLEAN NOT NULL DEFAULT FALSE,
+
+    pagina_lendo INTEGER CHECK (pagina_lendo >= 0),
+
+    favoritado BOOLEAN NOT NULL DEFAULT FALSE,
+    data_favoritado DATE,
+
     UNIQUE (id_usuario, id_livro)
 );
