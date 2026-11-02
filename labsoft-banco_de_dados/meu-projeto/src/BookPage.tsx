@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { BookCover, Icon, books, type BookList } from "./shared"
 
+const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
+
 export type Review = { id: number; author: string; stars: number; date: string; text: string; mine?: boolean }
 
 type Props = {
@@ -139,8 +141,17 @@ function Reader({ bookId, startPage, onPage, onClose }: { bookId: number; startP
 }
 
 export default function BookPage(p: Props) {
-  const book = books.find((b) => b.id === p.bookId)!
-  const d = bookDetails[p.bookId]
+  const staticBook = books.find((b) => b.id === p.bookId) ?? {
+    id: p.bookId,
+    title: `Livro ${p.bookId}`,
+    author: "Autor desconhecido",
+    genre: "Geral",
+    rating: "4,5",
+    color: "from-[#245947] to-[#1b4637]",
+    accent: "#e9d5a5",
+    mark: "uma leitura",
+  }
+  const d = bookDetails[p.bookId] ?? { pages: 250, year: 2024, publisher: "Editora não informada", format: "PDF", ratings: 0, age: "Livre", size: "1,0 MB", synopsis: ["Sinopse não disponível."] }
   const [reading, setReading] = useState(false)
   const [stars, setStars] = useState(0)
   const [hover, setHover] = useState(0)
@@ -148,6 +159,42 @@ export default function BookPage(p: Props) {
   const [reviewError, setReviewError] = useState("")
   const [listMenu, setListMenu] = useState(false)
   const [toast, setToast] = useState("")
+  const [coverError, setCoverError] = useState(false)
+  const [bookInfo, setBookInfo] = useState<{ id: number; titulo: string | null; autor: string | null; genero: string | null; sinopse: string | null; ano_de_publicação?: number | null; pais?: string | null; lingua?: string | null } | null>(null)
+
+  useEffect(() => {
+    setCoverError(false)
+    let active = true
+
+    async function loadBook() {
+      try {
+        const response = await fetch(`${API_URL}/livro/${p.bookId}`)
+        if (!response.ok) throw new Error("Livro não encontrado")
+        const data = (await response.json()) as typeof bookInfo
+        if (active) setBookInfo(data)
+      } catch {
+        if (active) setBookInfo(null)
+      }
+    }
+
+    loadBook()
+    return () => {
+      active = false
+    }
+  }, [p.bookId])
+
+  const book = {
+    id: staticBook.id,
+    title: bookInfo?.titulo || staticBook.title,
+    author: bookInfo?.autor || staticBook.author,
+    genre: bookInfo?.genero || staticBook.genre,
+    rating: staticBook.rating,
+    color: staticBook.color,
+    accent: staticBook.accent,
+    mark: staticBook.mark,
+  }
+  const synopsis = bookInfo?.sinopse ? [bookInfo.sinopse] : d.synopsis
+  const coverUrl = `${API_URL}/livro/${p.bookId}/capa`
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -188,6 +235,15 @@ export default function BookPage(p: Props) {
 
   const download = guard(() => {
     if (!isDownloaded) p.setDownloaded((x) => [...x, p.bookId])
+    const url = `${API_URL}/livro/${p.bookId}/pdf/download`
+    const link = document.createElement("a")
+    link.href = url
+    link.target = "_blank"
+    link.rel = "noopener noreferrer"
+    link.download = `${(book.title || "livro").replace(/[\\/:*?"<>|]/g, "")}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
     setToast(`Download de “${book.title}” iniciado (${d.size}).`)
   })
 
@@ -219,7 +275,25 @@ export default function BookPage(p: Props) {
         <div className="grid gap-10 lg:grid-cols-[360px_1fr] lg:gap-16">
           <div className="mx-auto w-full max-w-[280px] lg:max-w-none">
             <div className="rotate-[-1.5deg] transition hover:rotate-0">
-              <BookCover book={book} />
+              <div className="relative mx-auto w-full max-w-[230px] overflow-hidden rounded-[18px] border border-[#d7d0bf] bg-[#efeae0] shadow-[0_18px_35px_rgba(35,28,20,0.14)]">
+                {!coverError && (
+                  <img
+                    alt={`Capa do livro ${book.title}`}
+                    className="h-[320px] w-full object-cover sm:h-[360px]"
+                    onError={() => setCoverError(true)}
+                    src={coverUrl}
+                  />
+                )}
+                {coverError && (
+                  <div className={`flex h-[320px] w-full items-center justify-center bg-gradient-to-br ${book.color} p-5 text-center text-white sm:h-[360px]`}>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.28em] text-white/70">{book.mark}</p>
+                      <h2 className="mt-3 font-serif text-2xl leading-tight">{book.title}</h2>
+                      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/70">{book.author}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

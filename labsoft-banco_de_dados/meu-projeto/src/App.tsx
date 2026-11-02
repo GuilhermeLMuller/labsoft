@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 import AuthPage, { type AuthMode } from "./AuthPage"
+import BookPage, { type Review, initialReviews } from "./BookPage"
 import SearchResultsPage from "./SearchResultsPage"
+import { type BookList } from "./shared"
 
 type IconName =
   | "book"
@@ -164,7 +166,13 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
   const [user, setUser] = useState<string | null>(null)
-  const [currentView, setCurrentView] = useState<"home" | "search">("home")
+  const [currentView, setCurrentView] = useState<"home" | "search" | "book">("home")
+  const [selectedBookId, setSelectedBookId] = useState<number | null>(null)
+  const [lastView, setLastView] = useState<"home" | "search">("home")
+  const [lists, setLists] = useState<BookList[]>([])
+  const [downloaded, setDownloaded] = useState<number[]>([])
+  const [progress, setProgress] = useState<Record<number, number>>({})
+  const [reviews, setReviews] = useState<Record<number, Review[]>>(initialReviews)
 
   const visibleBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR")
@@ -181,6 +189,12 @@ export default function App() {
     setFavorites((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   }
 
+  const openBook = (id: number) => {
+    setLastView(currentView === "search" ? "search" : "home")
+    setSelectedBookId(id)
+    setCurrentView("book")
+  }
+
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const term = query.trim()
@@ -189,7 +203,37 @@ export default function App() {
   }
 
   if (currentView === "search") {
-    return <SearchResultsPage query={query} onBack={() => setCurrentView("home")} />
+    return <SearchResultsPage query={query} onBack={() => setCurrentView("home")} onOpenBook={openBook} />
+  }
+
+  if (currentView === "book" && selectedBookId !== null) {
+    return (
+      <BookPage
+        bookId={selectedBookId}
+        downloaded={downloaded}
+        favorites={favorites}
+        lists={lists}
+        onBack={() => {
+          setSelectedBookId(null)
+          setCurrentView(lastView)
+        }}
+        onOpenBook={openBook}
+        onRequireAuth={() => setAuthMode("login")}
+        onReview={(bookId, review) => {
+          setReviews((current) => ({
+            ...current,
+            [bookId]: [review, ...(current[bookId] ?? [])],
+          }))
+        }}
+        onToggleFavorite={toggleFavorite}
+        progress={progress}
+        reviews={reviews[selectedBookId] ?? []}
+        setDownloaded={setDownloaded}
+        setLists={setLists}
+        setProgress={(id, page) => setProgress((current) => ({ ...current, [id]: page }))}
+        user={user}
+      />
+    )
   }
 
   return (

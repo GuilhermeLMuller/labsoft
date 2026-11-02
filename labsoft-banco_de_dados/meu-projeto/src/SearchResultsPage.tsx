@@ -14,7 +14,7 @@ type SearchBook = {
   lingua?: string | null
 }
 
-export default function SearchResultsPage({ query, onBack }: { query: string; onBack: () => void }) {
+export default function SearchResultsPage({ query, onBack, onOpenBook }: { query: string; onBack: () => void; onOpenBook: (id: number) => void }) {
   const [books, setBooks] = useState<SearchBook[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -94,26 +94,28 @@ export default function SearchResultsPage({ query, onBack }: { query: string; on
               const title = book.titulo || "Livro sem título"
 
               return (
-                <li className="flex h-full flex-col gap-3 rounded-2xl border border-[#ded8cb] bg-white/80 p-3 shadow-[0_8px_18px_rgba(29,23,15,0.04)]" key={book.id}>
-                  <div className="flex items-start gap-3">
-                    <div className="h-[120px] w-[82px] shrink-0 overflow-hidden rounded-lg border border-[#e5dfd2] bg-[#ece6dc]">
-                      <img alt={`Capa do livro ${title}`} className="h-full w-full object-cover" src={coverUrl} />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                        {book.genero && <span className="rounded-full bg-[#245947] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-white">{book.genero}</span>}
-                        {book.ano_de_publicação && <span className="text-[10px] text-[#77736a]">{book.ano_de_publicação}</span>}
+                <li className="flex h-full" key={book.id}>
+                  <button className="flex w-full flex-col gap-3 rounded-2xl border border-[#ded8cb] bg-white/80 p-3 text-left shadow-[0_8px_18px_rgba(29,23,15,0.04)] transition hover:-translate-y-0.5 hover:border-[#245947]" onClick={() => onOpenBook(book.id)} type="button">
+                    <div className="flex items-start gap-3">
+                      <div className="h-[120px] w-[82px] shrink-0 overflow-hidden rounded-lg border border-[#e5dfd2] bg-[#ece6dc]">
+                        <img alt={`Capa do livro ${title}`} className="h-full w-full object-cover" src={coverUrl} />
                       </div>
 
-                      <h2 className="font-serif text-lg font-semibold text-[#1d1a17]">{title}</h2>
-                      <p className="mt-1 text-xs text-[#5a574f]">por <span className="font-semibold text-[#245947]">{book.autor || "Autor desconhecido"}</span></p>
-                    </div>
-                  </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          {book.genero && <span className="rounded-full bg-[#245947] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-white">{book.genero}</span>}
+                          {book.ano_de_publicação && <span className="text-[10px] text-[#77736a]">{book.ano_de_publicação}</span>}
+                        </div>
 
-                  <p className="line-clamp-4 text-xs leading-5 text-[#4a483f]">
-                    {book.sinopse || "Sinopse não disponível para este livro no momento."}
-                  </p>
+                        <h2 className="font-serif text-lg font-semibold text-[#1d1a17]">{title}</h2>
+                        <p className="mt-1 text-xs text-[#5a574f]">por <span className="font-semibold text-[#245947]">{book.autor || "Autor desconhecido"}</span></p>
+                      </div>
+                    </div>
+
+                    <p className="line-clamp-4 text-xs leading-5 text-[#4a483f]">
+                      {book.sinopse || "Sinopse não disponível para este livro no momento."}
+                    </p>
+                  </button>
                 </li>
               )
             })}
