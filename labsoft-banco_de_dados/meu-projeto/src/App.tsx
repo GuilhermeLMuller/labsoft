@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import AuthPage, { type AuthMode } from "./AuthPage"
+import SearchResultsPage from "./SearchResultsPage"
 
 type IconName =
   | "book"
@@ -163,6 +164,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
   const [user, setUser] = useState<string | null>(null)
+  const [currentView, setCurrentView] = useState<"home" | "search">("home")
 
   const visibleBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR")
@@ -177,6 +179,17 @@ export default function App() {
 
   const toggleFavorite = (id: number) => {
     setFavorites((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  }
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const term = query.trim()
+    if (!term) return
+    setCurrentView("search")
+  }
+
+  if (currentView === "search") {
+    return <SearchResultsPage query={query} onBack={() => setCurrentView("home")} />
   }
 
   return (
@@ -204,16 +217,22 @@ export default function App() {
             )}
           </nav>
 
-          <label className="relative ml-auto hidden w-full max-w-[320px] lg:block">
+          <form className="relative ml-auto hidden w-full max-w-[320px] lg:block" onSubmit={handleSearchSubmit}>
             <span className="sr-only">Buscar livros</span>
-            <Icon name="search" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#858178]" />
+            <button
+              aria-label="Buscar livros"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-[#858178] transition hover:text-[#245947]"
+              type="submit"
+            >
+              <Icon name="search" className="h-4 w-4" />
+            </button>
             <input
               className="h-11 w-full rounded-full border border-[#ddd7ca] bg-white/70 pl-11 pr-4 text-sm outline-none transition placeholder:text-[#97938a] focus:border-[#648b7d] focus:ring-2 focus:ring-[#648b7d]/15"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar por título, autor ou gênero"
               value={query}
             />
-          </label>
+          </form>
 
           {user ? (
             <button

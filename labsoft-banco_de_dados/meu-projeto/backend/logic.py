@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from database import SessionLocal
 import models
@@ -262,6 +262,46 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
         ]
     finally:
         session.close()
+def search_livros(query: str, limit: int = 50):
+    session = SessionLocal()
+    try:
+        termo = (query or "").strip()
+        if not termo:
+            return []
+
+        filtro = f"%{termo}%"
+        livros = (
+            session.query(models.Livro)
+            .filter(
+                or_(
+                    models.Livro.titulo.ilike(filtro),
+                    models.Livro.autor.ilike(filtro),
+                    models.Livro.genero.ilike(filtro),
+                    models.Livro.sinopse.ilike(filtro),
+                )
+            )
+            .order_by(models.Livro.id_livro)
+            .limit(limit)
+            .all()
+        )
+
+        return [
+            {
+                "id": livro.id_livro,
+                "titulo": livro.titulo,
+                "autor": livro.autor,
+                "ano_de_publicação": livro.ano_de_publicacao,
+                "genero": livro.genero,
+                "pais": livro.pais,
+                "sinopse": livro.sinopse,
+                "lingua": livro.linguagem,
+            }
+            for livro in livros
+        ]
+    finally:
+        session.close()
+
+
 def list_avaliacoes(
     id_usuario=None,
     id_livro=None,

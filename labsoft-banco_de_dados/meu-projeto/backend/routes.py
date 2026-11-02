@@ -392,6 +392,15 @@ async def get_livros(
     # Implement your logic to retrieve livros here
      return list_livros(genero=genero, autor=autor, pais=pais, linguagem=linguagem, titulo=titulo, ano_publicacao=ano_publicacao, offset=offset, limit=limit)
 
+@app.get("/data/livros/busca")
+async def search_livros_endpoint(
+    query: str = Query(default="", min_length=1),
+    limit: int = Query(50, ge=1, le=200),
+):
+    if not query or not query.strip():
+        return []
+    return search_livros(query=query, limit=limit)
+
 @app.get("/data/avaliacoes")
 async def get_avaliacoes(
     id_usuario: Optional[int] = Query(None, description="Filtrar por ID do usuário"),
@@ -413,7 +422,6 @@ async def get_livro_usuario(
     # Implement your logic to retrieve livro_usuario here
     return list_livro_usuario(id_usuario=id_usuario, id_livro=id_livro, offset=offset, limit=limit)  # Placeholder response
 
-<<<<<<< HEAD
 
 
 #REQUESTS A PÁGINA QUE APARECE AO CLICAR NO LIVRO A SEGUIR, para buscar as avaiações use /data/avaliacoes?id_livro={id_livro}
@@ -457,5 +465,3 @@ async def get_pdf_download(id_livro: int):
                             filename = arquivo["titulo"]+".pdf")
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
-=======
->>>>>>> Lucas_APIdeEdicao
