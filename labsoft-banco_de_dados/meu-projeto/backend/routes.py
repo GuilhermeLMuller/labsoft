@@ -9,12 +9,15 @@ from logic import *
 from schemas.auth import LoginInput, RegisterInput
 from schemas.usuario import *
 from schemas.livros import *
+from schemas.assinatura import *
+from schemas.avaliacao import *
+from schemas.livrousuario import *
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -194,6 +197,163 @@ async def delete_book_endpoint(book_data: DeleteBookInput):
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
+## Assinatura ##
+
+@app.post("/data/assinaturas")
+async def create_assinatura_endpoint(assinatura_data: CreateAssinaturaInput):
+    try:
+        return create_assinatura(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/data/assinaturas")
+async def replace_assinatura_endpoint(assinatura_data: ReplaceAssinaturaInput):
+    try:
+        return replace_assinatura(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/assinaturas/tipo")
+async def update_assinatura_tipo_endpoint(assinatura_data: UpdateAssinaturaTipoInput):
+    try:
+        return update_assinatura_tipo(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/assinaturas/email")
+async def update_assinatura_email_endpoint(assinatura_data: UpdateAssinaturaEmailInput):
+    try:
+        return update_assinatura_email(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/assinaturas/senha")
+async def update_assinatura_senha_endpoint(assinatura_data: UpdateAssinaturaSenhaInput):
+    try:
+        return update_assinatura_senha(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/data/assinaturas")
+async def delete_assinatura_endpoint(assinatura_data: DeleteAssinaturaInput):
+    try:
+        return delete_assinatura(assinatura_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+## Avaliacoes ##
+
+@app.post("/data/avaliacoes")
+async def create_avaliacao_endpoint(avaliacao_data: CreateAvaliacaoInput):
+    try:
+        return create_avaliacao(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/data/avaliacoes")
+async def replace_avaliacao_endpoint(avaliacao_data: ReplaceAvaliacaoInput):
+    try:
+        return replace_avaliacao(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/avaliacoes/comentario")
+async def update_avaliacao_comentario_endpoint(avaliacao_data: UpdateAvaliacaoComentarioInput):
+    try:
+        return update_avaliacao_comentario(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/avaliacoes/estrelas")
+async def update_avaliacao_estrelas_endpoint(avaliacao_data: UpdateAvaliacaoEstrelasInput):
+    try:
+        return update_avaliacao_estrelas(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/data/avaliacoes")
+async def delete_avaliacao_endpoint(avaliacao_data: DeleteAvaliacaoInput):
+    try:
+        return delete_avaliacao(avaliacao_data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+## livrousuario ##
+@app.post("/data/livros_usuario")
+async def create_livro_usuario_endpoint(data: CreateLivroUsuarioInput):
+    try:
+        return create_livro_usuario(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.put("/data/livros_usuario")
+async def replace_livro_usuario_endpoint(data: ReplaceLivroUsuarioInput):
+    try:
+        return replace_livro_usuario(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/lido")
+async def update_livro_usuario_lido_endpoint(data: UpdateLidoInput):
+    try:
+        return update_livro_usuario_lido(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/baixado")
+async def update_livro_usuario_baixado_endpoint(data: UpdateBaixadoInput):
+    try:
+        return update_livro_usuario_baixado(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/favoritado")
+async def update_livro_usuario_favoritado_endpoint(data: UpdateFavoritadoInput):
+    try:
+        return update_livro_usuario_favoritado(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/lendo")
+async def update_livro_usuario_lendo_endpoint(data: UpdateLendoInput):
+    try:
+        return update_livro_usuario_lendo(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.patch("/data/livros_usuario/pagina")
+async def update_livro_usuario_pagina_endpoint(data: UpdatePaginaLendoInput):
+    try:
+        return update_livro_usuario_pagina(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+@app.delete("/data/livros_usuario")
+async def delete_livro_usuario_endpoint(data: DeleteLivroUsuarioInput):
+    try:
+        return delete_livro_usuario(data.model_dump())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+
+
 #@app.put      =>Substituir
 #@app.patch    =>Atualizar parcialmente 
 #@app.delete   =>DELETE
@@ -232,6 +392,15 @@ async def get_livros(
 ):
     # Implement your logic to retrieve livros here
      return list_livros(genero=genero, autor=autor, pais=pais, linguagem=linguagem, titulo=titulo, ano_publicacao=ano_publicacao, offset=offset, limit=limit)
+
+@app.get("/data/livros/busca")
+async def search_livros_endpoint(
+    query: str = Query(default="", min_length=1),
+    limit: int = Query(50, ge=1, le=200),
+):
+    if not query or not query.strip():
+        return []
+    return search_livros(query=query, limit=limit)
 
 @app.get("/data/avaliacoes")
 async def get_avaliacoes(
