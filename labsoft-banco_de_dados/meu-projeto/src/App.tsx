@@ -239,6 +239,7 @@ export default function App() {
     return (
       <BookPage
         bookId={selectedBookId}
+        userId={user?.id ?? null}
         downloaded={downloaded}
         favorites={favorites}
         lists={lists}

@@ -1,4 +1,5 @@
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 
 from database import SessionLocal
 import models
@@ -260,6 +261,8 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
                 "pais": livro.pais,
                 "sinopse": livro.sinopse,
                 "lingua": livro.linguagem,
+                "restricao_de_idade": livro.restricao_de_idade,
+                "capa": livro.capa,
             }
             for livro in livros
         ]
@@ -1216,8 +1219,31 @@ from models import LivroUsuario
 def create_livro_usuario(new_livro_usuario):
     session = SessionLocal()
     try:
-        if not new_livro_usuario.get("id_usuario") or not new_livro_usuario.get("id_livro"):
+        id_usuario = new_livro_usuario.get("id_usuario")
+        id_livro = new_livro_usuario.get("id_livro")
+        if not id_usuario or not id_livro:
             raise ValueError("Faltam dados obrigatórios (id_usuario, id_livro)")
+
+        existing = (
+            session.query(LivroUsuario)
+            .filter(
+                LivroUsuario.id_usuario == id_usuario,
+                LivroUsuario.id_livro == id_livro,
+            )
+            .first()
+        )
+        if existing:
+            existing.visualizado = True
+            existing.data_visualizado = date.today()
+            session.commit()
+            return {
+                "message": "Acesso ao livro registrado",
+                "livro_usuario": {
+                    "id_livro_usuario": existing.id_livro_usuario,
+                    "id_usuario": existing.id_usuario,
+                    "id_livro": existing.id_livro,
+                },
+            }
 
         # Configura a data de visualização
         new_livro_usuario["data_visualizado"] = date.today()
@@ -1240,6 +1266,29 @@ def create_livro_usuario(new_livro_usuario):
                 "id_livro_usuario": livro_usuario.id_livro_usuario,
                 "id_usuario": livro_usuario.id_usuario,
                 "id_livro": livro_usuario.id_livro,
+            },
+        }
+    except IntegrityError:
+        session.rollback()
+        existing = (
+            session.query(LivroUsuario)
+            .filter(
+                LivroUsuario.id_usuario == id_usuario,
+                LivroUsuario.id_livro == id_livro,
+            )
+            .first()
+        )
+        if not existing:
+            raise
+        existing.visualizado = True
+        existing.data_visualizado = date.today()
+        session.commit()
+        return {
+            "message": "Acesso ao livro registrado",
+            "livro_usuario": {
+                "id_livro_usuario": existing.id_livro_usuario,
+                "id_usuario": existing.id_usuario,
+                "id_livro": existing.id_livro,
             },
         }
     except Exception:
