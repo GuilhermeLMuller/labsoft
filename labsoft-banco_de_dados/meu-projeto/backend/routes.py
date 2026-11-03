@@ -275,7 +275,7 @@ async def get_estatisticas_livro(id_livro: int):
 @app.get("/livro/{id_livro}/pdf")
 async def get_pdf(id_livro: int):
     try:
-         return RedirectResponse(ler_livro_pdf(id_livro)["url"], status_code=status.HTTP_302_FOUND)
+         return RedirectResponse(ler_livro_pdf(id_livro), status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
 
