@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import AuthPage, { type AuthMode } from "./AuthPage"
 import BookPage, { type Review, initialReviews } from "./BookPage"
+import ProfilePage from "./ProfilePage"
 import SearchResultsPage from "./SearchResultsPage"
 import { type BookList } from "./shared"
 
@@ -165,14 +166,17 @@ export default function App() {
   const [favorites, setFavorites] = useState<number[]>([3])
   const [menuOpen, setMenuOpen] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
-  const [user, setUser] = useState<string | null>(null)
-  const [currentView, setCurrentView] = useState<"home" | "search" | "book">("home")
+  const [user, setUser] = useState<{ id: number; name: string; email: string } | null>(null)
+  const [currentView, setCurrentView] = useState<"home" | "profile" | "search" | "book">("home")
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null)
   const [lastView, setLastView] = useState<"home" | "search">("home")
   const [lists, setLists] = useState<BookList[]>([])
   const [downloaded, setDownloaded] = useState<number[]>([])
   const [progress, setProgress] = useState<Record<number, number>>({})
   const [reviews, setReviews] = useState<Record<number, Review[]>>(initialReviews)
+  const updateProgress = useCallback((id: number, page: number) => {
+    setProgress((current) => ({ ...current, [id]: page }))
+  }, [])
 
   const visibleBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR")
@@ -200,6 +204,31 @@ export default function App() {
     const term = query.trim()
     if (!term) return
     setCurrentView("search")
+  }
+
+  if (currentView === "profile" && user) {
+    return (
+      <div className="min-h-screen bg-[#f8f5ef] text-[#25251f]">
+        <ProfilePage
+          favorites={favorites}
+          name={user.name}
+          userId={user.id}
+          onBack={() => setCurrentView("home")}
+          onLogout={() => {
+            setUser(null)
+            setCurrentView("home")
+          }}
+          onOpenBook={openBook}
+          onToggleFavorite={toggleFavorite}
+          progress={progress}
+          setProgress={updateProgress}
+          lists={lists}
+          setLists={setLists}
+          downloaded={downloaded}
+          setDownloaded={setDownloaded}
+        />
+      </div>
+    )
   }
 
   if (currentView === "search") {
@@ -230,8 +259,8 @@ export default function App() {
         reviews={reviews[selectedBookId] ?? []}
         setDownloaded={setDownloaded}
         setLists={setLists}
-        setProgress={(id, page) => setProgress((current) => ({ ...current, [id]: page }))}
-        user={user}
+        setProgress={updateProgress}
+        user={user?.name ?? null}
       />
     )
   }
@@ -255,9 +284,14 @@ export default function App() {
               Explorar
             </a>
             {user && (
-              <a className="transition hover:text-[#245947]" href="#biblioteca">
-                Minha biblioteca
-              </a>
+              <>
+                <a className="transition hover:text-[#245947]" href="#biblioteca">
+                  Minha biblioteca
+                </a>
+                <button className="transition hover:text-[#245947]" onClick={() => setCurrentView("profile")} type="button">
+                  Meu perfil
+                </button>
+              </>
             )}
           </nav>
 
@@ -281,14 +315,14 @@ export default function App() {
           {user ? (
             <button
               className="hidden h-10 items-center gap-2 rounded-full border border-[#ddd7ca] bg-white/70 px-3 text-sm font-medium sm:flex"
-              onClick={() => setUser(null)}
-              title="Sair"
+              onClick={() => setCurrentView("profile")}
+              title="Abrir meu perfil"
               type="button"
             >
               <span className="grid h-7 w-7 place-items-center rounded-full bg-[#e7ded0] text-[#6c503d]">
                 <Icon name="user" className="h-4 w-4" />
               </span>
-              {user} · Sair
+              {user.name} · Sair
             </button>
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
@@ -321,8 +355,18 @@ export default function App() {
         {menuOpen && (
           <nav className="border-t border-[#ded8cb] bg-[#f8f5ef] px-5 py-4 text-sm md:hidden">
             <div className="flex flex-col gap-1">
-              {(user ? ["Início", "Explorar", "Minha biblioteca"] : ["Início", "Explorar"]).map((item) => (
-                <a className="rounded-lg px-3 py-2.5 font-medium hover:bg-[#eee9df]" href="#inicio" key={item}>
+              {(user ? ["Início", "Explorar", "Minha biblioteca", "Meu perfil"] : ["Início", "Explorar"]).map((item) => (
+                <a
+                  className="rounded-lg px-3 py-2.5 font-medium hover:bg-[#eee9df]"
+                  href={item === "Meu perfil" ? "#perfil" : "#inicio"}
+                  key={item}
+                  onClick={(event) => {
+                    if (item !== "Meu perfil") return
+                    event.preventDefault()
+                    setCurrentView("profile")
+                    setMenuOpen(false)
+                  }}
+                >
                   {item}
                 </a>
               ))}
@@ -341,7 +385,7 @@ export default function App() {
           mode={authMode}
           onClose={() => setAuthMode(null)}
           onModeChange={setAuthMode}
-          onSuccess={(name) => { setUser(name); setAuthMode(null) }}
+          onSuccess={(account) => { setUser(account); setAuthMode(null) }}
         />
       )}
 

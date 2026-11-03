@@ -120,11 +120,13 @@ def register_account(new_account):
         session.add(usuario)
         session.commit()
         session.refresh(assinatura)
+        session.refresh(usuario)
 
         return {
             "message": "Conta criada com sucesso",
             "assinatura": {
                 "id": assinatura.id_assinatura,
+                "user_id": usuario.id_usuario,
                 "name": nome,
                 "email": assinatura.email,
             },
@@ -153,16 +155,17 @@ def login_account(login_data):
         if not assinatura or assinatura.senha_hash != password:
             raise ValueError("E-mail ou senha inválidos.")
 
+        usuario = (
+            session.query(models.Usuario)
+            .filter(models.Usuario.id_assinatura == assinatura.id_assinatura)
+            .first()
+        )
         return {
             "message": "Login realizado com sucesso",
             "user": {
-                "id": assinatura.id_assinatura,
-                "name": (
-                    session.query(models.Usuario.nome)
-                    .filter(models.Usuario.id_assinatura == assinatura.id_assinatura)
-                    .scalar()
-                    or email.split("@")[0]
-                ),
+                "id": usuario.id_usuario if usuario else assinatura.id_assinatura,
+                "subscription_id": assinatura.id_assinatura,
+                "name": usuario.nome if usuario else email.split("@")[0],
                 "email": assinatura.email,
             },
         }

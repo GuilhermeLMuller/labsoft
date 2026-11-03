@@ -11,14 +11,45 @@ export type AuthResponse = {
   message: string
   user?: {
     id: number
+    user_id?: number
     name: string
     email: string
   }
   assinatura?: {
     id: number
+    user_id?: number
     name: string
     email: string
   }
+}
+
+export type UserBookRecord = {
+  id: number
+  id_livro: number
+  id_usuario: number
+  lido: boolean
+  baixado: boolean
+  lendo: boolean
+  pagina_lendo: number | null
+  favoritado: boolean
+  visualizado: boolean
+}
+
+export type UserProfile = {
+  id: number
+  name: string
+  age: number | null
+  type: string
+  subscription_id: number
+}
+
+export type UserReview = {
+  id: number
+  id_usuario: number
+  id_livro: number
+  rating: number
+  comment: string | null
+  nome_usuario: string
 }
 
 function getErrorMessage(payload: unknown, fallback: string) {
@@ -77,4 +108,48 @@ export function register(name: string, email: string, password: string, subscrip
       subscription_type_id: subscriptionTypeId,
     }),
   })
+}
+
+export function fetchUserProfile(userId: number) {
+  return request<UserProfile[]>(`/data/usuarios?offset=0&limit=100`).then((users) => {
+    const user = users.find((item) => item.id === userId)
+    if (!user) throw new Error("Não foi possível carregar o perfil.")
+    return user
+  })
+}
+
+export function fetchUserBookRecords(userId: number) {
+  return request<UserBookRecord[]>(`/data/livro_usuario?id_usuario=${userId}&offset=0&limit=100`)
+}
+
+export function updateUserBookRecord(
+  record: UserBookRecord,
+  field: "lido" | "baixado" | "favoritado" | "lendo" | "pagina",
+  value: boolean | number,
+) {
+  const path = field === "pagina" ? "pagina" : field
+  const key = field === "pagina" ? "pagina_lendo" : field
+  return request<{ message: string }>(`/data/livros_usuario/${path}`, {
+    method: "PATCH",
+    body: JSON.stringify({ id_livro_usuario: record.id, [key]: value }),
+  })
+}
+
+export function createUserBookRecord(userId: number, bookId: number, values: Partial<UserBookRecord> = {}) {
+  return request<{ livro_usuario: { id_livro_usuario: number } }>("/data/livros_usuario", {
+    method: "POST",
+    body: JSON.stringify({
+      id_usuario: userId,
+      id_livro: bookId,
+      lido: values.lido ?? false,
+      baixado: values.baixado ?? false,
+      lendo: values.lendo ?? false,
+      pagina_lendo: values.pagina_lendo ?? null,
+      favoritado: values.favoritado ?? false,
+    }),
+  })
+}
+
+export function fetchUserReviews(userId: number) {
+  return request<UserReview[]>(`/data/avaliacoes?id_usuario=${userId}&offset=0&limit=100`)
 }

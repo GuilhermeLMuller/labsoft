@@ -7,7 +7,7 @@ type Props = {
   mode: AuthMode
   onModeChange: (mode: AuthMode) => void
   onClose: () => void
-  onSuccess: (name: string) => void
+  onSuccess: (account: { id: number; name: string; email: string }) => void
 }
 
 const inputClass =
@@ -91,8 +91,13 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
       const response = isSignup
         ? await register(name.trim(), email, password, Number(subscriptionTypeId))
         : await login(email, password)
-      const display = response.user?.name || response.assinatura?.name || email.split("@")[0]
-      onSuccess(display)
+      const account = response.user ?? (response.assinatura && {
+        id: response.assinatura.user_id ?? response.assinatura.id,
+        name: response.assinatura.name,
+        email: response.assinatura.email,
+      })
+      if (!account) throw new Error("O servidor não retornou os dados da conta.")
+      onSuccess(account)
     } catch (error) {
       setErrors({ form: error instanceof Error ? error.message : "Não foi possível concluir a operação." })
     } finally {
