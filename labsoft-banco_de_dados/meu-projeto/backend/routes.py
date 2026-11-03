@@ -157,13 +157,6 @@ async def update_book_sinopse_endpoint(book_data: UpdateBookSinopseInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/capa")
-async def update_book_capa_endpoint(book_data: UpdateBookCapaInput):
-    try:
-        return update_book_capa(book_data.model_dump())
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"message": str(exc)})
-
 
 @app.patch("/data/livros/idade")
 async def update_book_idade_endpoint(book_data: UpdateBookIdadeInput):
@@ -463,5 +456,18 @@ async def get_pdf_download(id_livro: int):
         return FileResponse(path = arquivo["path"],
                             media_type="application/pdf",
                             filename = arquivo["titulo"]+".pdf")
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
+
+
+#recomendação
+@app.get("/data/usuarios/{id_usuario}/recomendacoes")
+async def get_recomendacoes(
+    id_usuario: int,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=50),
+):
+    try:
+        return recommend_livros(id_usuario, offset=offset, limit=limit)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
