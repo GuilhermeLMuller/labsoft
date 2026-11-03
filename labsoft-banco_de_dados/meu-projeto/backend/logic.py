@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import func, or_
 
 from database import SessionLocal
@@ -1465,7 +1467,16 @@ def ler_livro_pdf(id_livro):
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
         if not livro:
             raise ValueError("Livro não encontrado")
-        return {"path": book_path(id_livro), "titulo": livro.titulo}
+        return gerar_url_book(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
+    finally:
+        session.close()
+def download_livro_pdf(id_livro):
+    session = SessionLocal()
+    try:
+        livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
+        if not livro:
+            raise ValueError("Livro não encontrado")
+        return gerar_url_book_download(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
     finally:
         session.close()
 def ler_livro_capa(id_livro):
@@ -1474,6 +1485,11 @@ def ler_livro_capa(id_livro):
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
         if not livro:
             raise ValueError("Livro não encontrado")
-        return book_cover_path(id_livro)
+        return gerar_url_cover(
+            r2,
+            os.environ["R2_BUCKET_NAME"],
+            id_livro,
+            livro.titulo,
+        )
     finally:
         session.close()
