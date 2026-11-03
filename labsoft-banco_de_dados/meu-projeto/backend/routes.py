@@ -288,7 +288,7 @@ async def delete_avaliacao_endpoint(avaliacao_data: DeleteAvaliacaoInput):
 
 
 ## livrousuario ##
-@app.post("/data/livros_usuario")
+@app.post("/data/livro_usuario")
 async def create_livro_usuario_endpoint(data: CreateLivroUsuarioInput):
     try:
         return create_livro_usuario(data.model_dump())
@@ -296,7 +296,7 @@ async def create_livro_usuario_endpoint(data: CreateLivroUsuarioInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.put("/data/livros_usuario")
+@app.put("/data/livro_usuario")
 async def replace_livro_usuario_endpoint(data: ReplaceLivroUsuarioInput):
     try:
         return replace_livro_usuario(data.model_dump())
@@ -304,7 +304,8 @@ async def replace_livro_usuario_endpoint(data: ReplaceLivroUsuarioInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros_usuario/lido")
+
+@app.patch("/data/livro_usuario/lido")
 async def update_livro_usuario_lido_endpoint(data: UpdateLidoInput):
     try:
         return update_livro_usuario_lido(data.model_dump())
@@ -312,7 +313,8 @@ async def update_livro_usuario_lido_endpoint(data: UpdateLidoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros_usuario/baixado")
+
+@app.patch("/data/livro_usuario/baixado")
 async def update_livro_usuario_baixado_endpoint(data: UpdateBaixadoInput):
     try:
         return update_livro_usuario_baixado(data.model_dump())
@@ -320,7 +322,8 @@ async def update_livro_usuario_baixado_endpoint(data: UpdateBaixadoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros_usuario/favoritado")
+
+@app.patch("/data/livro_usuario/favoritado")
 async def update_livro_usuario_favoritado_endpoint(data: UpdateFavoritadoInput):
     try:
         return update_livro_usuario_favoritado(data.model_dump())
@@ -328,7 +331,7 @@ async def update_livro_usuario_favoritado_endpoint(data: UpdateFavoritadoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros_usuario/lendo")
+@app.patch("/data/livro_usuario/lendo")
 async def update_livro_usuario_lendo_endpoint(data: UpdateLendoInput):
     try:
         return update_livro_usuario_lendo(data.model_dump())
@@ -336,7 +339,7 @@ async def update_livro_usuario_lendo_endpoint(data: UpdateLendoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros_usuario/pagina")
+@app.patch("/data/livro_usuario/pagina")
 async def update_livro_usuario_pagina_endpoint(data: UpdatePaginaLendoInput):
     try:
         return update_livro_usuario_pagina(data.model_dump())
@@ -344,7 +347,7 @@ async def update_livro_usuario_pagina_endpoint(data: UpdatePaginaLendoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.delete("/data/livros_usuario")
+@app.delete("/data/livro_usuario")
 async def delete_livro_usuario_endpoint(data: DeleteLivroUsuarioInput):
     try:
         return delete_livro_usuario(data.model_dump())
