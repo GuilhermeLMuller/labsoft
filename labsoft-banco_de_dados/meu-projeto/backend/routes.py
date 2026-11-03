@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+import starlette.status as status
 from typing import List, Optional
 from database import engine
 import models
@@ -274,25 +275,21 @@ async def get_estatisticas_livro(id_livro: int):
 @app.get("/livro/{id_livro}/pdf")
 async def get_pdf(id_livro: int):
     try:
-        return FileResponse(path = ler_livro_pdf(id_livro)["path"])
+         return RedirectResponse(ler_livro_pdf(id_livro)["url"], status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
 
 @app.get("/livro/{id_livro}/capa")
 async def get_capa(id_livro: int):
     try:
-        return FileResponse(path = ler_livro_capa(id_livro),
-                            media_type="image/jpeg",
-                            content_disposition_type='inline')
+         return RedirectResponse(url = ler_livro_capa(id_livro), status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
     
 @app.get("/livro/{id_livro}/pdf/download")
 async def get_pdf_download(id_livro: int):
     try:
-        arquivo = ler_livro_pdf(id_livro)
-        return FileResponse(path = arquivo["path"],
-                            media_type="application/pdf",
-                            filename = arquivo["titulo"]+".pdf")
+        arquivo = download_livro_pdf(id_livro)
+        return RedirectResponse(url=arquivo, status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
