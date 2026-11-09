@@ -1,11 +1,12 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 import starlette.status as status
 from typing import List, Optional
 from database import engine
 import models
 from logic import *
+from storage import R2StorageError
 from schemas.auth import LoginInput, RegisterInput
 from schemas.usuario import *
 from schemas.livros import *
@@ -462,3 +463,67 @@ async def get_pdf_download(id_livro: int):
         return RedirectResponse(url=arquivo, status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
+def validate_upload_file(
+    upload: UploadFile,
+    expected_extension: str,
+    expected_content_type: str,
+    signature: bytes,
+    max_size: int,
+) -> None:
+    filename = (upload.filename or "").lower()
+    if not filename.endswith(expected_extension):
+        raise HTTPException(status_code=400, detail="Formato de arquivo inválido.")
+    if upload.content_type != expected_content_type:
+        raise HTTPException(status_code=400, detail="Tipo de conteúdo inválido.")
+
+    upload.file.seek(0, 2)
+    file_size = upload.file.tell()
+    upload.file.seek(0)
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="O arquivo está vazio.")
+    if file_size > max_size:
+        raise HTTPException(status_code=413, detail="O arquivo excede o limite permitido.")
+
+    if upload.file.read(len(signature)) != signature:
+        upload.file.seek(0)
+        raise HTTPException(status_code=400, detail="Conteúdo do arquivo inválido.")
+    upload.file.seek(0)
+
+
+@app.put("/data/livros/{id_livro}/arquivos")
+def upload_livro_arquivos(
+    id_livro: int,
+    pdf: UploadFile = File(...),
+    capa: UploadFile | None = File(None),
+):
+    validate_upload_file(
+        pdf,
+        ".pdf",
+        "application/pdf",
+        b"%PDF-",
+        50 * 1024 * 1024,
+    )
+    if capa is not None and not capa.filename:
+        capa = None
+    if capa is not None:
+        validate_upload_file(
+            capa,
+            ".jpg",
+            "image/jpeg",
+            b"\xff\xd8\xff",
+            5 * 1024 * 1024,
+        )
+
+    try:
+        return upload_book_files(
+            id_livro,
+            pdf.file,
+            capa.file if capa is not None else None,
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
+    except R2StorageError:
+        return JSONResponse(
+            status_code=502,
+            content={"message": "Não foi possível enviar os arquivos ao armazenamento."},
+        )

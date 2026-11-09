@@ -4,7 +4,7 @@ from sqlalchemy import func, or_
 
 from database import SessionLocal
 import models
-from storage import *
+from storage import upload_file_to_r2
 
 def list_subscription_types():
     session = SessionLocal()
@@ -570,6 +570,33 @@ def delete_user(user_data):
         session.close()
 
 ## livros ##
+
+def upload_book_files(id_livro, pdf_file, cover_file=None):
+    session = SessionLocal()
+    try:
+        livro = session.get(models.Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+    finally:
+        session.close()
+
+    upload_file_to_r2(
+        pdf_file,
+        f"livros/{id_livro}.pdf",
+        "application/pdf",
+    )
+    if cover_file is not None:
+        upload_file_to_r2(
+            cover_file,
+            f"capas/{id_livro}.jpg",
+            "image/jpeg",
+        )
+
+    return {
+        "id_livro": id_livro,
+        "pdf_uploaded": True,
+        "cover_uploaded": cover_file is not None,
+    }
 
 def create_book(new_book):
     session = SessionLocal()
