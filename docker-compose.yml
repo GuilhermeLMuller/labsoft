@@ -1,15 +1,18 @@
 services:
-  postgres:
-    image: postgres:18
-    container_name: labsoft
-    environment:
-      POSTGRES_USER: biblioteca_user
-      POSTGRES_PASSWORD: biblioteca_password
-      POSTGRES_DB: biblioteca
+  backend:
+    build:
+      context: ./labsoft-banco_de_dados/meu-projeto
+      dockerfile: Dockerfile.backend
+    env_file:
+      - ./labsoft-banco_de_dados/meu-projeto/backend/.env
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql
+      - "8000:8000"
 
-volumes:
-  postgres_data:
+  frontend:
+    build:
+      context: ./labsoft-banco_de_dados/meu-projeto
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8443:8443"
+    depends_on:
+      - backend
