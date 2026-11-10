@@ -26,57 +26,6 @@ def list_subscription_types():
     finally:
         session.close()
 
-def create_book(book_data):
-    session = SessionLocal()
-    try:
-        livro = models.Livro(**book_data)
-        session.add(livro)
-        session.commit()
-        session.refresh(livro)
-        return {
-            "id_livro": livro.id_livro,
-            "titulo": livro.titulo,
-            "autor": livro.autor,
-            "ano_de_publicacao": livro.ano_de_publicacao,
-            "pais": livro.pais,
-            "linguagem": livro.linguagem,
-            "sinopse": livro.sinopse,
-            "capa": livro.capa,
-            "genero": livro.genero,
-            "restricao_de_idade": livro.restricao_de_idade,
-        }
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-def create_book(book_data):
-    session = SessionLocal()
-    try:
-        livro = models.Livro(**book_data)
-        session.add(livro)
-        session.commit()
-        session.refresh(livro)
-        return {
-            "id_livro": livro.id_livro,
-            "titulo": livro.titulo,
-            "autor": livro.autor,
-            "ano_de_publicacao": livro.ano_de_publicacao,
-            "pais": livro.pais,
-            "linguagem": livro.linguagem,
-            "sinopse": livro.sinopse,
-            "capa": livro.capa,
-            "genero": livro.genero,
-            "restricao_de_idade": livro.restricao_de_idade,
-        }
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
 def register_account(new_account):
     session = SessionLocal()
     try:
@@ -241,7 +190,7 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
         if titulo:
             livros = livros.filter(models.Livro.titulo.ilike(f"%{titulo}%"))
         if ano_publicacao:
-            livros = livros.filter(models.Livro.ano_de_publicacao.ilike(f"%{ano_publicacao}%"))
+            livros = livros.filter(models.Livro.ano_de_publicacao == ano_publicacao)
         total = livros.count()
         livros = (
             livros.order_by(models.Livro.id_livro)
@@ -380,7 +329,6 @@ def list_livro_usuario(id_usuario=None, id_livro=None, offset: int = 0, limit: i
                 "pagina_lendo": item.pagina_lendo,
                 "data_favoritado": item.data_favoritado,
                 "favoritado": item.favoritado,
-                "visualizado": item.visualizado,
                 "data_visualizado": item.data_visualizado,
             }
             for item in livro_usuario
@@ -778,28 +726,6 @@ def update_book_sinopse(book_data):
     finally:
         session.close()
 
-
-def update_book_capa(book_data):
-    session = SessionLocal()
-    try:
-        id_livro = book_data.get("id_livro") or book_data.get("id")
-        nova_capa = book_data.get("capa")
-
-        if not id_livro or not nova_capa:
-            raise ValueError("Faltam dados obrigatórios")
-
-        livro = session.get(models.Livro, id_livro)
-        if not livro:
-            raise ValueError("Livro não encontrado")
-
-        livro.capa = nova_capa
-        session.commit()
-        return {"message": "Capa do livro atualizada com sucesso"}
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
 
 
 def update_book_idade(book_data):
@@ -1491,5 +1417,88 @@ def ler_livro_capa(id_livro):
             id_livro,
             livro.titulo,
         )
+    finally:
+        session.close()
+
+from sqlalchemy import func, or_, cast, Float
+
+
+#recomendação
+def recommend_livros(id_usuario: int, offset: int = 0, limit: int = 20):
+    session = SessionLocal()
+    try:
+        usuario = session.get(models.Usuario, id_usuario)
+        if usuario is None:
+            raise ValueError("Usuário não encontrado")
+
+        gostos = [g.strip() for g in (usuario.gostos or []) if g and g.strip()]
+
+        # Estatísticas de avaliação por livro
+        stats = (
+            session.query(
+                models.Avaliacao.id_livro.label("id_livro"),
+                func.avg(models.Avaliacao.estrelas).label("media"),
+                func.count(models.Avaliacao.id_avaliacao).label("votos"),
+            )
+            .group_by(models.Avaliacao.id_livro)
+            .subquery()
+        )
+
+        C = float(session.query(func.avg(models.Avaliacao.estrelas)).scalar() or 3.0)
+        m = 5.0  # mínimo de votos para confiar na média
+
+        votos = cast(func.coalesce(stats.c.votos, 0), Float)
+        media = cast(func.coalesce(stats.c.media, C), Float)
+        score = (votos / (votos + m)) * media + (m / (votos + m)) * C
+
+        # Livros que o usuário já consumiu
+        ja_consumidos = (
+            session.query(models.LivroUsuario.id_livro)
+            .filter(
+                models.LivroUsuario.id_usuario == id_usuario,
+                or_(
+                    models.LivroUsuario.lido,
+                    models.LivroUsuario.lendo,
+                    models.LivroUsuario.baixado,
+                ),
+            )
+        )
+
+        def build_query(filtrar_genero: bool):
+            q = (
+                session.query(models.Livro, score.label("score"), media.label("media"), votos.label("votos"))
+                .outerjoin(stats, stats.c.id_livro == models.Livro.id_livro)
+                .filter(~models.Livro.id_livro.in_(ja_consumidos))
+            )
+            if usuario.idade is not None:
+                q = q.filter(or_(
+                    models.Livro.restricao_de_idade.is_(None),
+                    models.Livro.restricao_de_idade <= usuario.idade,
+                ))
+            if filtrar_genero:
+                q = q.filter(or_(*[models.Livro.genero.ilike(f"%{g}%") for g in gostos]))
+            return q.order_by(score.desc(), models.Livro.id_livro)
+
+        motivo = "genero_preferido"
+        rows = []
+        if gostos:
+            rows = build_query(True).offset(offset).limit(limit).all()
+        if not rows and offset == 0:
+            motivo = "mais_bem_avaliados"
+            rows = build_query(False).limit(limit).all()
+
+        return [
+            {
+                "id": livro.id_livro,
+                "titulo": livro.titulo,
+                "autor": livro.autor,
+                "genero": livro.genero,
+                "sinopse": livro.sinopse,
+                "media_estrelas": round(float(m_), 2),
+                "total_avaliacoes": int(v),
+                "motivo": motivo,
+            }
+            for livro, s, m_, v in rows
+        ]
     finally:
         session.close()

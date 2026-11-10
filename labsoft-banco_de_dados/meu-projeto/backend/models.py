@@ -93,7 +93,6 @@ class Livro(Base):
     pais = Column(String(100), nullable=True)
     linguagem = Column(String(100), nullable=True)
     sinopse = Column(Text, nullable=True)
-    capa = Column(Text, nullable=True)
     titulo = Column(String(255), nullable=True)
     genero = Column(String(100), nullable=True)
     restricao_de_idade = Column(SmallInteger, nullable=True)
@@ -138,5 +137,4 @@ class LivroUsuario(Base):
     pagina_lendo = Column(Integer, nullable=True)
     data_favoritado = Column(Date, nullable=True)
     favoritado = Column(Boolean, nullable=False, server_default=text("false"))
-    visualizado = Column(Boolean, nullable=False, server_default=text("false"))
     data_visualizado = Column(Date, nullable=True)
