@@ -7,17 +7,29 @@ export type SubscriptionPlan = {
   max_users: number
 }
 
+export type UserProfile = {
+  id: number
+  name: string
+  subscription_id: number
+  age?: number | null
+  type: string
+  tastes?: string[]
+  statistics?: Record<string, unknown>
+}
+
 export type AuthResponse = {
   message: string
-  user?: {
+  user?: UserProfile | null
+  users?: UserProfile[]
+  subscription?: {
     id: number
-    name: string
     email: string
+    subscription_type_id: number
   }
   assinatura?: {
     id: number
-    name: string
     email: string
+    subscription_type_id: number
   }
 }
 
@@ -67,14 +79,31 @@ export function login(email: string, password: string) {
   })
 }
 
-export function register(name: string, email: string, password: string, subscriptionTypeId: number) {
+export function register(email: string, password: string, subscriptionTypeId: number) {
   return request<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify({
-      name,
       email,
       password,
       subscription_type_id: subscriptionTypeId,
+    }),
+  })
+}
+
+export function listUsersBySubscription(subscriptionId: number) {
+  return request<UserProfile[]>(`/data/usuarios?id_assinatura=${subscriptionId}`)
+}
+
+export function createUserProfile(subscriptionId: number, name: string, type: string = "leitor", age?: number | null) {
+  return request<{ message: string; user: UserProfile }>("/data/usuarios", {
+    method: "POST",
+    body: JSON.stringify({
+      id_assinatura: subscriptionId,
+      nome: name,
+      tipo_usuario: type,
+      idade: age ?? null,
+      gostos: [],
+      estatisticas: {},
     }),
   })
 }
