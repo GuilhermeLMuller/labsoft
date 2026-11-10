@@ -1,2 +1,0 @@
-ALTER TABLE livro_usuario
-ADD COLUMN nota SMALLINT CHECK (nota BETWEEN 1 AND 5)
