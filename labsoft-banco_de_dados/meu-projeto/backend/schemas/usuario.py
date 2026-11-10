@@ -4,10 +4,10 @@ from typing import Dict, List, Optional
 class CreateUserInput(BaseModel):
     id_assinatura: int
     nome: str
-    tipo_usuario: str
-    idade: int
-    gostos: Optional[List[str]] = []
-    estatisticas: Optional[Dict] = {}
+    tipo_usuario: str = "leitor"
+    idade: Optional[int] = None
+    gostos: Optional[List[str]] = None
+    estatisticas: Optional[Dict] = None
 
 
 class ReplaceUserInput(BaseModel):

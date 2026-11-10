@@ -52,6 +52,18 @@ async def login(login_data: LoginInput):
 
 ## User ##
 
+@app.get("/data/usuarios")
+async def get_usuarios(
+    nome: Optional[str] = Query(None, description="Filtrar por nome"),
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo"),
+    idade: Optional[int] = Query(None, description="Filtrar por idade"),
+    id_assinatura: Optional[int] = Query(None, description="Filtrar por assinatura"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+):
+    return list_usuarios(nome=nome, tipo=tipo, idade=idade, id_assinatura=id_assinatura, offset=offset, limit=limit)
+
+
 @app.post("/data/usuarios")
 async def create_user_endpoint(user_data: CreateUserInput):
     try:
