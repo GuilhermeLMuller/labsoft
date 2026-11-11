@@ -52,31 +52,6 @@ def create_book(book_data):
     finally:
         session.close()
 
-def create_book(book_data):
-    session = SessionLocal()
-    try:
-        livro = models.Livro(**book_data)
-        session.add(livro)
-        session.commit()
-        session.refresh(livro)
-        return {
-            "id_livro": livro.id_livro,
-            "titulo": livro.titulo,
-            "autor": livro.autor,
-            "ano_de_publicacao": livro.ano_de_publicacao,
-            "pais": livro.pais,
-            "linguagem": livro.linguagem,
-            "sinopse": livro.sinopse,
-            "capa": livro.capa,
-            "genero": livro.genero,
-            "restricao_de_idade": livro.restricao_de_idade,
-        }
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
 
 def register_account(new_account):
     session = SessionLocal()
@@ -114,7 +89,6 @@ def register_account(new_account):
         session.add(assinatura)
         session.commit()
         session.refresh(assinatura)
-        session.refresh(usuario)
 
         return {
             "message": "Conta criada com sucesso",
@@ -162,8 +136,6 @@ def login_account(login_data):
                 "email": assinatura.email,
                 "subscription_type_id": assinatura.id_tipo_assinatura,
             },
-            "users": users,
-            "user": users[0] if users else None,
         }
     finally:
         session.close()
@@ -176,7 +148,6 @@ def list_assinaturas(email = None, id_tipo_assinatura = None, offset: int = 0, l
             assinaturas = assinaturas.filter(models.Assinatura.email.ilike(f"%{email}%"))
         if id_tipo_assinatura is not None:
             assinaturas = assinaturas.filter(models.Assinatura.id_tipo_assinatura == id_tipo_assinatura)
-        total = assinaturas.count()
         assinaturas = (
             assinaturas.order_by(models.Assinatura.id_assinatura)
             .offset(offset)
@@ -230,7 +201,6 @@ def list_usuarios(nome = None, tipo = None, idade = None, id_assinatura = None, 
             usuarios = usuarios.filter(models.Usuario.idade == idade)
         if id_assinatura is not None:
             usuarios = usuarios.filter(models.Usuario.id_assinatura == id_assinatura)
-        total = usuarios.count()
         usuarios = (
             usuarios.order_by(models.Usuario.id_usuario)
             .offset(offset)
@@ -267,7 +237,6 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
             livros = livros.filter(models.Livro.titulo.ilike(f"%{titulo}%"))
         if ano_publicacao:
             livros = livros.filter(models.Livro.ano_de_publicacao.ilike(f"%{ano_publicacao}%"))
-        total = livros.count()
         livros = (
             livros.order_by(models.Livro.id_livro)
             .offset(offset)
@@ -387,7 +356,6 @@ def list_livro_usuario(id_usuario=None, id_livro=None, offset: int = 0, limit: i
             livro_usuario = livro_usuario.filter(models.LivroUsuario.id_usuario == id_usuario)
         if id_livro:
             livro_usuario = livro_usuario.filter(models.LivroUsuario.id_livro == id_livro)
-        total = livro_usuario.count()
         livro_usuario = (
             livro_usuario.order_by(models.LivroUsuario.id_livro_usuario)
             .offset(offset)
@@ -489,9 +457,6 @@ def replace_user(user):
         nome = user.get("nome")
         tipo_usuario = user.get("tipo_usuario") or user.get("tipo")
         idade = user.get("idade")
-        gostos = user.get("gostos", [])
-        estatisticas = user.get("estatisticas", {})
-
         if not id_usuario or not id_assinatura or not nome or not tipo_usuario or idade is None:
             raise ValueError("Faltam dados obrigatorios")
 

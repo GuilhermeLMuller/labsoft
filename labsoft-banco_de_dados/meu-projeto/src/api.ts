@@ -21,13 +21,13 @@ export type AuthResponse = {
   message: string
   user?: {
     id: number
-    user_id?: number
     name: string
     email: string
+    subscription_id: number
+    subscription_type_id: number
   }
   assinatura?: {
     id: number
-    user_id?: number
     email: string
     subscription_type_id: number
   }
@@ -43,50 +43,6 @@ export type UserBookRecord = {
   pagina_lendo: number | null
   favoritado: boolean
   visualizado: boolean
-}
-
-export type UserProfile = {
-  id: number
-  name: string
-  age: number | null
-  type: string
-  subscription_id: number
-}
-
-export type UserReview = {
-  id: number
-  id_usuario: number
-  id_livro: number
-  rating: number
-  comment: string | null
-  nome_usuario: string
-}
-
-export type ReviewResponse = {
-  id_avaliacao: number
-  id_livro: number
-  estrelas: number
-  comentario?: string | null
-}
-
-export type UserBookRecord = {
-  id: number
-  id_livro: number
-  id_usuario: number
-  lido: boolean
-  baixado: boolean
-  lendo: boolean
-  pagina_lendo: number | null
-  favoritado: boolean
-  visualizado: boolean
-}
-
-export type UserProfile = {
-  id: number
-  name: string
-  age: number | null
-  type: string
-  subscription_id: number
 }
 
 export type UserReview = {
