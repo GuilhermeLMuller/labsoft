@@ -7,6 +7,16 @@ export type SubscriptionPlan = {
   max_users: number
 }
 
+export type UserProfile = {
+  id: number
+  name: string
+  subscription_id: number
+  age?: number | null
+  type: string
+  tastes?: string[]
+  statistics?: Record<string, unknown>
+}
+
 export type AuthResponse = {
   message: string
   user?: {
@@ -18,9 +28,45 @@ export type AuthResponse = {
   assinatura?: {
     id: number
     user_id?: number
-    name: string
     email: string
+    subscription_type_id: number
   }
+}
+
+export type UserBookRecord = {
+  id: number
+  id_livro: number
+  id_usuario: number
+  lido: boolean
+  baixado: boolean
+  lendo: boolean
+  pagina_lendo: number | null
+  favoritado: boolean
+  visualizado: boolean
+}
+
+export type UserProfile = {
+  id: number
+  name: string
+  age: number | null
+  type: string
+  subscription_id: number
+}
+
+export type UserReview = {
+  id: number
+  id_usuario: number
+  id_livro: number
+  rating: number
+  comment: string | null
+  nome_usuario: string
+}
+
+export type ReviewResponse = {
+  id_avaliacao: number
+  id_livro: number
+  estrelas: number
+  comentario?: string | null
 }
 
 export type UserBookRecord = {
@@ -105,11 +151,10 @@ export function login(email: string, password: string) {
   })
 }
 
-export function register(name: string, email: string, password: string, subscriptionTypeId: number) {
+export function register(email: string, password: string, subscriptionTypeId: number) {
   return request<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify({
-      name,
       email,
       password,
       subscription_type_id: subscriptionTypeId,
@@ -189,5 +234,23 @@ export function deleteReview(reviewId: number) {
   return request<{ message: string }>("/data/avaliacoes", {
     method: "DELETE",
     body: JSON.stringify({ id_avaliacao: reviewId }),
+  })
+}
+
+export function listUsersBySubscription(subscriptionId: number) {
+  return request<UserProfile[]>(`/data/usuarios?id_assinatura=${subscriptionId}`)
+}
+
+export function createUserProfile(subscriptionId: number, name: string, type: string = "leitor", age?: number | null) {
+  return request<{ message: string; user: UserProfile }>("/data/usuarios", {
+    method: "POST",
+    body: JSON.stringify({
+      id_assinatura: subscriptionId,
+      nome: name,
+      tipo_usuario: type,
+      idade: age ?? null,
+      gostos: [],
+      estatisticas: {},
+    }),
   })
 }

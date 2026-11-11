@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
@@ -79,13 +81,12 @@ def create_book(book_data):
 def register_account(new_account):
     session = SessionLocal()
     try:
-        nome = new_account.get("name")
         email = new_account.get("email")
         password = new_account.get("password")
         subscription_type_id = new_account.get("subscription_type_id")
 
-        if not nome or not email or not password or not subscription_type_id:
-            raise ValueError("Nome, e-mail e senha são obrigatórios.")
+        if not email or not password or not subscription_type_id:
+            raise ValueError("E-mail, senha e plano são obrigatórios.")
 
         existing_account = (
             session.query(models.Assinatura)
@@ -111,14 +112,6 @@ def register_account(new_account):
             senha_hash=password,
         )
         session.add(assinatura)
-        session.flush()
-
-        usuario = models.Usuario(
-            id_assinatura=assinatura.id_assinatura,
-            nome=nome,
-            tipo="leitor",
-        )
-        session.add(usuario)
         session.commit()
         session.refresh(assinatura)
         session.refresh(usuario)
@@ -127,9 +120,8 @@ def register_account(new_account):
             "message": "Conta criada com sucesso",
             "assinatura": {
                 "id": assinatura.id_assinatura,
-                "user_id": usuario.id_usuario,
-                "name": nome,
                 "email": assinatura.email,
+                "subscription_type_id": assinatura.id_tipo_assinatura,
             },
         }
     except Exception:
@@ -168,7 +160,10 @@ def login_account(login_data):
                 "subscription_id": assinatura.id_assinatura,
                 "name": usuario.nome if usuario else email.split("@")[0],
                 "email": assinatura.email,
+                "subscription_type_id": assinatura.id_tipo_assinatura,
             },
+            "users": users,
+            "user": users[0] if users else None,
         }
     finally:
         session.close()
@@ -198,7 +193,32 @@ def list_assinaturas(email = None, id_tipo_assinatura = None, offset: int = 0, l
         ]
     finally:
         session.close()
-def list_usuarios(nome = None, tipo = None, idade = None, offset: int = 0, limit: int = 20):
+def list_users_by_assinatura(id_assinatura):
+    session = SessionLocal()
+    try:
+        usuarios = (
+            session.query(models.Usuario)
+            .filter(models.Usuario.id_assinatura == id_assinatura)
+            .order_by(models.Usuario.id_usuario)
+            .all()
+        )
+        return [
+            {
+                "id": usuario.id_usuario,
+                "name": usuario.nome,
+                "subscription_id": usuario.id_assinatura,
+                "age": usuario.idade,
+                "type": usuario.tipo,
+                "tastes": usuario.gostos,
+                "statistics": usuario.estatisticas,
+            }
+            for usuario in usuarios
+        ]
+    finally:
+        session.close()
+
+
+def list_usuarios(nome = None, tipo = None, idade = None, id_assinatura = None, offset: int = 0, limit: int = 20):
     session = SessionLocal()
     try:
         usuarios = session.query(models.Usuario)
@@ -208,6 +228,8 @@ def list_usuarios(nome = None, tipo = None, idade = None, offset: int = 0, limit
             usuarios = usuarios.filter(models.Usuario.tipo.ilike(f"%{tipo}%"))
         if idade is not None:
             usuarios = usuarios.filter(models.Usuario.idade == idade)
+        if id_assinatura is not None:
+            usuarios = usuarios.filter(models.Usuario.id_assinatura == id_assinatura)
         total = usuarios.count()
         usuarios = (
             usuarios.order_by(models.Usuario.id_usuario)
@@ -223,6 +245,7 @@ def list_usuarios(nome = None, tipo = None, idade = None, offset: int = 0, limit
                 "age": usuario.idade,
                 "type": usuario.tipo,
                 "tastes": usuario.gostos,
+                "statistics": usuario.estatisticas,
             }
             for usuario in usuarios
         ]
@@ -404,12 +427,28 @@ def create_user(new_user):
         gostos = new_user.get("gostos", [])
         estatisticas = new_user.get("estatisticas", {})
 
-        if not id_assinatura or not nome or not tipo_usuario or idade is None:
-            raise ValueError("Faltam dados obrigatorios")
+        if not id_assinatura or not nome or not tipo_usuario:
+            raise ValueError("Faltam dados obrigatórios")
 
-        assinatura = session.get(assinatura, id_assinatura)
+        if tipo_usuario not in {"administrador", "autor", "leitor"}:
+            raise ValueError("Tipo de usuário inválido")
+
+        assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
+
+        plan = (
+            session.query(models.TipoAssinatura)
+            .filter(models.TipoAssinatura.id_tipo_assinatura == assinatura.id_tipo_assinatura)
+            .first()
+        )
+        usuarios_ativos = (
+            session.query(models.Usuario)
+            .filter(models.Usuario.id_assinatura == id_assinatura)
+            .count()
+        )
+        if plan and usuarios_ativos >= plan.maximo_acessos:
+            raise ValueError("Limite de usuários atingido para esta assinatura.")
 
         usuario = models.Usuario(
             id_assinatura=id_assinatura,
@@ -424,11 +463,15 @@ def create_user(new_user):
         session.refresh(usuario)
 
         return {
-            "message": "Conta criada com sucesso",
-            "assinatura": {
-                "id": assinatura.id_assinatura,
-                "name": nome,
-                "email": assinatura.email,
+            "message": "Usuário criado com sucesso",
+            "user": {
+                "id": usuario.id_usuario,
+                "name": usuario.nome,
+                "subscription_id": usuario.id_assinatura,
+                "age": usuario.idade,
+                "type": usuario.tipo,
+                "tastes": usuario.gostos,
+                "statistics": usuario.estatisticas,
             },
         }
     except Exception:
@@ -456,7 +499,7 @@ def replace_user(user):
         if not usuario:
             raise ValueError("Usuário não encontrado")
 
-        assinatura = session.get(assinatura, id_assinatura)
+        assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
 
@@ -1517,7 +1560,16 @@ def ler_livro_pdf(id_livro):
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
         if not livro:
             raise ValueError("Livro não encontrado")
-        return {"path": book_path(id_livro), "titulo": livro.titulo}
+        return gerar_url_book(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
+    finally:
+        session.close()
+def download_livro_pdf(id_livro):
+    session = SessionLocal()
+    try:
+        livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
+        if not livro:
+            raise ValueError("Livro não encontrado")
+        return gerar_url_book_download(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
     finally:
         session.close()
 def ler_livro_capa(id_livro):
@@ -1526,6 +1578,11 @@ def ler_livro_capa(id_livro):
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
         if not livro:
             raise ValueError("Livro não encontrado")
-        return book_cover_path(id_livro)
+        return gerar_url_cover(
+            r2,
+            os.environ["R2_BUCKET_NAME"],
+            id_livro,
+            livro.titulo,
+        )
     finally:
         session.close()
