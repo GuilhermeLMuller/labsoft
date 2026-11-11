@@ -15,7 +15,7 @@ type Props = {
   mode: AuthMode
   onModeChange: (mode: AuthMode) => void
   onClose: () => void
-  onSuccess: (name: string) => void
+  onSuccess: (account: { id: number; name: string; email: string }) => void
 }
 
 const inputClass =
@@ -107,7 +107,11 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
     setErrors({})
     try {
       const result = await createUserProfile(subscriptionId, trimmedName, "leitor", profileAge === "" ? undefined : Number(profileAge))
-      onSuccess(result.user.name)
+      onSuccess({
+        id: result.user.id,
+        name: result.user.name,
+        email,
+      })
       onClose()
     } catch (error) {
       setErrors({ form: error instanceof Error ? error.message : "Não foi possível criar o perfil." })
@@ -140,9 +144,10 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
       }
 
       const response = await login(email, password)
-      const nextSubscriptionId = response.subscription?.id ?? null
-      if (nextSubscriptionId) {
-        const users = response.users ?? (await listUsersBySubscription(nextSubscriptionId))
+      const account = response.user
+      const nextSubscriptionId = account?.subscription_id ?? null
+      if (account && nextSubscriptionId) {
+        const users = await listUsersBySubscription(nextSubscriptionId)
         openUserPicker(nextSubscriptionId, users)
       } else {
         setErrors({ form: "Assinatura não encontrada para o e-mail informado." })
@@ -172,7 +177,11 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
               className="flex w-full items-center justify-between rounded-2xl border border-[#ddd7ca] bg-white p-4 text-left transition hover:border-[#245947] hover:bg-[#f6faf8]"
               key={userProfile.id}
               onClick={() => {
-                onSuccess(userProfile.name)
+                onSuccess({
+                  id: userProfile.id,
+                  name: userProfile.name,
+                  email,
+                })
                 onClose()
               }}
               type="button"

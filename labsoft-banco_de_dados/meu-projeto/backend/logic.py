@@ -1,6 +1,7 @@
 import os
 
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 
 from database import SessionLocal
 import models
@@ -23,31 +24,6 @@ def list_subscription_types():
             }
             for plan in plans
         ]
-    finally:
-        session.close()
-
-def create_book(book_data):
-    session = SessionLocal()
-    try:
-        livro = models.Livro(**book_data)
-        session.add(livro)
-        session.commit()
-        session.refresh(livro)
-        return {
-            "id_livro": livro.id_livro,
-            "titulo": livro.titulo,
-            "autor": livro.autor,
-            "ano_de_publicacao": livro.ano_de_publicacao,
-            "pais": livro.pais,
-            "linguagem": livro.linguagem,
-            "sinopse": livro.sinopse,
-            "capa": livro.capa,
-            "genero": livro.genero,
-            "restricao_de_idade": livro.restricao_de_idade,
-        }
-    except Exception:
-        session.rollback()
-        raise
     finally:
         session.close()
 
@@ -146,17 +122,20 @@ def login_account(login_data):
         if not assinatura or assinatura.senha_hash != password:
             raise ValueError("E-mail ou senha inválidos.")
 
-        users = list_users_by_assinatura(assinatura.id_assinatura)
-
+        usuario = (
+            session.query(models.Usuario)
+            .filter(models.Usuario.id_assinatura == assinatura.id_assinatura)
+            .first()
+        )
         return {
             "message": "Login realizado com sucesso",
-            "subscription": {
-                "id": assinatura.id_assinatura,
+            "user": {
+                "id": usuario.id_usuario if usuario else assinatura.id_assinatura,
+                "subscription_id": assinatura.id_assinatura,
+                "name": usuario.nome if usuario else email.split("@")[0],
                 "email": assinatura.email,
                 "subscription_type_id": assinatura.id_tipo_assinatura,
             },
-            "users": users,
-            "user": users[0] if users else None,
         }
     finally:
         session.close()
@@ -169,7 +148,6 @@ def list_assinaturas(email = None, id_tipo_assinatura = None, offset: int = 0, l
             assinaturas = assinaturas.filter(models.Assinatura.email.ilike(f"%{email}%"))
         if id_tipo_assinatura is not None:
             assinaturas = assinaturas.filter(models.Assinatura.id_tipo_assinatura == id_tipo_assinatura)
-        total = assinaturas.count()
         assinaturas = (
             assinaturas.order_by(models.Assinatura.id_assinatura)
             .offset(offset)
@@ -223,7 +201,6 @@ def list_usuarios(nome = None, tipo = None, idade = None, id_assinatura = None, 
             usuarios = usuarios.filter(models.Usuario.idade == idade)
         if id_assinatura is not None:
             usuarios = usuarios.filter(models.Usuario.id_assinatura == id_assinatura)
-        total = usuarios.count()
         usuarios = (
             usuarios.order_by(models.Usuario.id_usuario)
             .offset(offset)
@@ -260,7 +237,6 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
             livros = livros.filter(models.Livro.titulo.ilike(f"%{titulo}%"))
         if ano_publicacao:
             livros = livros.filter(models.Livro.ano_de_publicacao.ilike(f"%{ano_publicacao}%"))
-        total = livros.count()
         livros = (
             livros.order_by(models.Livro.id_livro)
             .offset(offset)
@@ -277,6 +253,8 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
                 "pais": livro.pais,
                 "sinopse": livro.sinopse,
                 "lingua": livro.linguagem,
+                "restricao_de_idade": livro.restricao_de_idade,
+                "capa": livro.capa,
             }
             for livro in livros
         ]
@@ -378,7 +356,6 @@ def list_livro_usuario(id_usuario=None, id_livro=None, offset: int = 0, limit: i
             livro_usuario = livro_usuario.filter(models.LivroUsuario.id_usuario == id_usuario)
         if id_livro:
             livro_usuario = livro_usuario.filter(models.LivroUsuario.id_livro == id_livro)
-        total = livro_usuario.count()
         livro_usuario = (
             livro_usuario.order_by(models.LivroUsuario.id_livro_usuario)
             .offset(offset)
@@ -480,9 +457,6 @@ def replace_user(user):
         nome = user.get("nome")
         tipo_usuario = user.get("tipo_usuario") or user.get("tipo")
         idade = user.get("idade")
-        gostos = user.get("gostos", [])
-        estatisticas = user.get("estatisticas", {})
-
         if not id_usuario or not id_assinatura or not nome or not tipo_usuario or idade is None:
             raise ValueError("Faltam dados obrigatorios")
 
@@ -1253,8 +1227,31 @@ from models import LivroUsuario
 def create_livro_usuario(new_livro_usuario):
     session = SessionLocal()
     try:
-        if not new_livro_usuario.get("id_usuario") or not new_livro_usuario.get("id_livro"):
+        id_usuario = new_livro_usuario.get("id_usuario")
+        id_livro = new_livro_usuario.get("id_livro")
+        if not id_usuario or not id_livro:
             raise ValueError("Faltam dados obrigatórios (id_usuario, id_livro)")
+
+        existing = (
+            session.query(LivroUsuario)
+            .filter(
+                LivroUsuario.id_usuario == id_usuario,
+                LivroUsuario.id_livro == id_livro,
+            )
+            .first()
+        )
+        if existing:
+            existing.visualizado = True
+            existing.data_visualizado = date.today()
+            session.commit()
+            return {
+                "message": "Acesso ao livro registrado",
+                "livro_usuario": {
+                    "id_livro_usuario": existing.id_livro_usuario,
+                    "id_usuario": existing.id_usuario,
+                    "id_livro": existing.id_livro,
+                },
+            }
 
         # Configura a data de visualização
         new_livro_usuario["data_visualizado"] = date.today()
@@ -1277,6 +1274,29 @@ def create_livro_usuario(new_livro_usuario):
                 "id_livro_usuario": livro_usuario.id_livro_usuario,
                 "id_usuario": livro_usuario.id_usuario,
                 "id_livro": livro_usuario.id_livro,
+            },
+        }
+    except IntegrityError:
+        session.rollback()
+        existing = (
+            session.query(LivroUsuario)
+            .filter(
+                LivroUsuario.id_usuario == id_usuario,
+                LivroUsuario.id_livro == id_livro,
+            )
+            .first()
+        )
+        if not existing:
+            raise
+        existing.visualizado = True
+        existing.data_visualizado = date.today()
+        session.commit()
+        return {
+            "message": "Acesso ao livro registrado",
+            "livro_usuario": {
+                "id_livro_usuario": existing.id_livro_usuario,
+                "id_usuario": existing.id_usuario,
+                "id_livro": existing.id_livro,
             },
         }
     except Exception:

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { createReview, createUserBookRecord, deleteReview, fetchBookReviews, updateReview } from "./api"
 import { BookCover, Icon, books, type BookList } from "./shared"
 
 const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
@@ -7,6 +8,7 @@ export type Review = { id: number; author: string; stars: number; date: string; 
 
 type Props = {
   bookId: number
+  userId: number | null
   user: string | null
   favorites: number[]
   onToggleFavorite: (id: number) => void
@@ -23,12 +25,12 @@ type Props = {
   onBack: () => void
 }
 
-export const bookDetails: Record<number, { pages: number; year: number; publisher: string; format: string; ratings: number; synopsis: string[]; age: string; size: string }> = {
-  1: { pages: 284, year: 2023, publisher: "Editora Vale do Sol", format: "EPUB · PDF", ratings: 412, age: "Livre", size: "3,2 MB", synopsis: ["Depois da morte da mãe, Clara descobre uma caixa de cartas que nunca foram enviadas, todas endereçadas a alguém que ela não conhece.", "Entre o interior de Minas e uma São Paulo que já não existe, a busca vira um retrato sobre aquilo que as famílias escolhem não dizer."] },
-  2: { pages: 310, year: 2022, publisher: "Casa das Rotas", format: "EPUB · PDF", ratings: 287, age: "12+", size: "4,1 MB", synopsis: ["Quando o mapa do avô aparece com uma montanha que não existe em nenhuma carta oficial, Tomás larga o emprego e parte.", "Uma aventura de travessias duras e encontros inesperados, sobre o que se perde e o que se ganha ao seguir sem garantias."] },
-  3: { pages: 256, year: 2024, publisher: "Editora Vale do Sol", format: "EPUB · PDF", ratings: 538, age: "Livre", size: "2,8 MB", synopsis: ["Numa casa de serra, três gerações de mulheres se reúnem para o último inverno antes da venda do terreno.", "Entre receitas, silêncios e um jardim que insiste em florescer, Helena Duarte escreve sobre herança e despedida com delicadeza rara."] },
-  4: { pages: 224, year: 2021, publisher: "Observatório Editorial", format: "EPUB · PDF", ratings: 361, age: "Livre", size: "5,6 MB", synopsis: ["Do big bang aos buracos negros, André Lins conduz o leitor por grandes ideias da física sem exigir uma única fórmula.", "Um guia claro e curioso para quem sempre quis entender o tempo, mas nunca encontrou por onde começar."] },
-  5: { pages: 178, year: 2023, publisher: "Casa das Rotas", format: "EPUB · PDF", ratings: 194, age: "14+", size: "1,9 MB", synopsis: ["Doze contos sobre encontros marcados em cafés, quase sempre adiados e às vezes impossíveis.", "Luiza Mota captura em poucas páginas a pequena coragem de dizer o que importa antes que a xícara esfrie."] },
+export const bookDetails: Record<number, { pages: number; year: number; synopsis: string[]; size: string }> = {
+   1: { pages: 284, year: 2023, size: "3,2 MB", synopsis: ["Depois da morte da mãe, Clara descobre uma caixa de cartas que nunca foram enviadas, todas endereçadas a alguém que ela não conhece.", "Entre o interior de Minas e uma São Paulo que já não existe, a busca vira um retrato sobre aquilo que as famílias escolhem não dizer."] },
+   2: { pages: 310, year: 2022, size: "4,1 MB", synopsis: ["Quando o mapa do avô aparece com uma montanha que não existe em nenhuma carta oficial, Tomás larga o emprego e parte.", "Uma aventura de travessias duras e encontros inesperados, sobre o que se perde e o que se ganha ao seguir sem garantias."] },
+   3: { pages: 256, year: 2024, size: "2,8 MB", synopsis: ["Numa casa de serra, três gerações de mulheres se reúnem para o último inverno antes da venda do terreno.", "Entre receitas, silêncios e um jardim que insiste em florescer, Helena Duarte escreve sobre herança e despedida com delicadeza rara."] },
+   4: { pages: 224, year: 2021, size: "5,6 MB", synopsis: ["Do big bang aos buracos negros, André Lins conduz o leitor por grandes ideias da física sem exigir uma única fórmula.", "Um guia claro e curioso para quem sempre quis entender o tempo, mas nunca encontrou por onde começar."] },
+   5: { pages: 178, year: 2023, size: "1,9 MB", synopsis: ["Doze contos sobre encontros marcados em cafés, quase sempre adiados e às vezes impossíveis.", "Luiza Mota captura em poucas páginas a pequena coragem de dizer o que importa antes que a xícara esfrie."] },
 }
 
 const seedReviews: Record<number, Review[]> = {
@@ -151,16 +153,29 @@ export default function BookPage(p: Props) {
     accent: "#e9d5a5",
     mark: "uma leitura",
   }
-  const d = bookDetails[p.bookId] ?? { pages: 250, year: 2024, publisher: "Editora não informada", format: "PDF", ratings: 0, age: "Livre", size: "1,0 MB", synopsis: ["Sinopse não disponível."] }
+  const d = bookDetails[p.bookId] ?? { pages: 250, year: 2024, size: "1,0 MB", synopsis: ["Sinopse não disponível."] }
   const [reading, setReading] = useState(false)
   const [stars, setStars] = useState(0)
   const [hover, setHover] = useState(0)
   const [text, setText] = useState("")
   const [reviewError, setReviewError] = useState("")
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [editingReview, setEditingReview] = useState<Review | null>(null)
   const [listMenu, setListMenu] = useState(false)
   const [toast, setToast] = useState("")
   const [coverError, setCoverError] = useState(false)
-  const [bookInfo, setBookInfo] = useState<{ id: number; titulo: string | null; autor: string | null; genero: string | null; sinopse: string | null; ano_de_publicação?: number | null; pais?: string | null; lingua?: string | null } | null>(null)
+  const [bookInfo, setBookInfo] = useState<{
+    id: number
+    titulo: string | null
+    autor: string | null
+    genero: string | null
+    sinopse: string | null
+    ano_de_publicação?: number | null
+    pais?: string | null
+    lingua?: string | null
+    restricao_de_idade?: number | null
+    capa?: string | null
+  } | null>(null)
 
   useEffect(() => {
     setCoverError(false)
@@ -183,6 +198,41 @@ export default function BookPage(p: Props) {
     }
   }, [p.bookId])
 
+  useEffect(() => {
+    let active = true
+    setReviews([])
+    fetchBookReviews(p.bookId)
+      .then((items) => {
+        if (!active) return
+        setReviews(items.map((item) => ({
+          id: item.id,
+          author: item.nome_usuario,
+          stars: item.rating,
+          date: "Publicado",
+          text: item.comment ?? "",
+          mine: item.id_usuario === p.userId,
+        })))
+      })
+      .catch((error: Error) => {
+        if (active) setReviewError(error.message)
+      })
+    return () => {
+      active = false
+    }
+  }, [p.bookId, p.userId])
+
+  useEffect(() => {
+    if (!p.userId) return
+    let active = true
+    createUserBookRecord(p.userId, p.bookId)
+      .catch((error: Error) => {
+        if (active) setToast(error.message)
+      })
+    return () => {
+      active = false
+    }
+  }, [p.bookId, p.userId])
+
   const book = {
     id: staticBook.id,
     title: bookInfo?.titulo || staticBook.title,
@@ -194,6 +244,10 @@ export default function BookPage(p: Props) {
     mark: staticBook.mark,
   }
   const synopsis = bookInfo?.sinopse ? [bookInfo.sinopse] : d.synopsis
+  const publicationYear = bookInfo?.ano_de_publicação ?? d.year
+  const country = bookInfo?.pais || "Não informado"
+  const language = bookInfo?.lingua || "Não informado"
+  const ageRating = bookInfo?.restricao_de_idade == null ? "Não informado" : `${bookInfo.restricao_de_idade}+`
   const coverUrl = `${API_URL}/livro/${p.bookId}/capa`
 
   useEffect(() => {
@@ -212,24 +266,20 @@ export default function BookPage(p: Props) {
   const isFavorite = p.favorites.includes(p.bookId)
   const isDownloaded = p.downloaded.includes(p.bookId)
   const saved = p.progress[p.bookId]
-  const baseRating = Number(book.rating.replace(",", "."))
 
   const score = useMemo(() => {
-    const mine = p.reviews.filter((r) => r.mine)
-    const total = d.ratings + p.reviews.filter((r) => !r.mine).length
-    const sum = baseRating * d.ratings + p.reviews.filter((r) => !r.mine).reduce((a, r) => a + r.stars, 0) + mine.reduce((a, r) => a + r.stars, 0)
-    const count = total + mine.length
-    return { value: sum / count, count }
-  }, [p.reviews, d.ratings, baseRating])
+    const count = reviews.length
+    const sum = reviews.reduce((total, review) => total + review.stars, 0)
+    return { value: count > 0 ? sum / count : 0, count }
+  }, [reviews])
 
   const distribution = useMemo(() => {
-    const weights = [0.68, 0.22, 0.06, 0.03, 0.01]
-    return [5, 4, 3, 2, 1].map((s, i) => {
-      const extra = p.reviews.filter((r) => r.stars === s).length
-      return { s, n: Math.round(weights[i] * d.ratings) + extra }
+    return [5, 4, 3, 2, 1].map((s) => {
+      const extra = reviews.filter((r) => r.stars === s).length
+      return { s, n: extra }
     })
-  }, [p.reviews, d.ratings])
-  const maxDist = Math.max(...distribution.map((x) => x.n))
+  }, [reviews])
+  const maxDist = Math.max(1, ...distribution.map((x) => x.n))
 
   const guard = (fn: () => void) => () => (p.user ? fn() : p.onRequireAuth())
 
@@ -247,16 +297,49 @@ export default function BookPage(p: Props) {
     setToast(`Download de “${book.title}” iniciado (${d.size}).`)
   })
 
-  const submitReview = (e: FormEvent) => {
+  const submitReview = async (e: FormEvent) => {
     e.preventDefault()
     if (!p.user) return p.onRequireAuth()
     if (stars === 0) return setReviewError("Escolha uma nota de 1 a 5 estrelas.")
     if (text.trim().length < 3) return setReviewError("Escreva um breve comentário.")
+    if (!p.userId) return setReviewError("Não foi possível identificar sua conta.")
     setReviewError("")
-    p.onReview(p.bookId, { id: Date.now(), author: p.user, stars, text: text.trim(), date: "Hoje", mine: true })
-    setStars(0)
-    setText("")
-    setToast("Avaliação publicada. Sua nota já entra no cálculo da média.")
+    try {
+      if (editingReview) {
+        await updateReview(editingReview.id, p.userId, p.bookId, stars, text.trim())
+        setReviews((items) => items.map((item) => item.id === editingReview.id ? { ...item, stars, text: text.trim() } : item))
+        setToast("Avaliação atualizada.")
+      } else {
+        const response = await createReview(p.userId, p.bookId, stars, text.trim())
+        const review = { id: response.avaliacao.id_avaliacao, author: p.user, stars, text: text.trim(), date: "Hoje", mine: true }
+        setReviews((items) => [review, ...items])
+        p.onReview(p.bookId, review)
+        setToast("Avaliação publicada. Sua nota já entra no cálculo da média.")
+      }
+
+      setEditingReview(null)
+      setStars(0)
+      setText("")
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "Não foi possível salvar a avaliação.")
+    }
+  }
+
+  const removeEditingReview = async () => {
+    if (!editingReview) return
+    if (!window.confirm("Excluir sua avaliação? Essa ação não pode ser desfeita.")) return
+
+    setReviewError("")
+    try {
+      await deleteReview(editingReview.id)
+      setReviews((items) => items.filter((item) => item.id !== editingReview.id))
+      setEditingReview(null)
+      setStars(0)
+      setText("")
+      setToast("Avaliação excluída.")
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "Não foi possível excluir a avaliação.")
+    }
   }
 
   const toggleInList = (listId: number) => {
@@ -351,20 +434,16 @@ export default function BookPage(p: Props) {
             {!p.user && <p className="mt-3 text-sm text-[#77736a]">Entre na sua conta para ler, baixar, favoritar e avaliar.</p>}
 
             <div className="mt-10 max-w-2xl space-y-4 font-serif text-lg leading-8 text-[#3b3a33]">
-              {d.synopsis.map((t) => <p key={t}>{t}</p>)}
+              {synopsis.map((t) => <p key={t}>{t}</p>)}
             </div>
 
             <dl className="mt-10 grid max-w-2xl grid-cols-2 gap-y-5 border-t border-[#ded8cb] pt-6 text-sm sm:grid-cols-4">
-              {[["Páginas", String(d.pages)], ["Publicação", String(d.year)], ["Formato", d.format], ["Classificação", d.age]].map(([k, v]) => (
+              {[["Publicação", String(publicationYear)], ["País", country], ["Idioma", language], ["Classificação", ageRating]].map(([k, v]) => (
                 <div key={k}>
                   <dt className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d6e57]">{k}</dt>
                   <dd className="mt-1 font-semibold">{v}</dd>
                 </div>
               ))}
-              <div className="col-span-2">
-                <dt className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d6e57]">Editora</dt>
-                <dd className="mt-1 font-semibold">{d.publisher}</dd>
-              </div>
             </dl>
           </div>
         </div>
@@ -393,6 +472,19 @@ export default function BookPage(p: Props) {
           <div>
             <h2 className="font-serif text-2xl font-semibold sm:text-3xl">Deixe sua opinião</h2>
             <form className="mt-5 rounded-2xl border border-[#ded8cb] bg-[#fffdf8] p-5" onSubmit={submitReview}>
+              {editingReview && (
+                <div className="mb-4 flex items-center justify-between rounded-lg bg-[#efeae0] px-3 py-2 text-sm text-[#5a574f]">
+                  <span>Editando sua avaliação</span>
+                  <div className="flex items-center gap-3">
+                    <button className="font-semibold text-[#a8402b] hover:underline" onClick={removeEditingReview} type="button">
+                      Excluir
+                    </button>
+                    <button className="font-semibold text-[#245947] hover:underline" onClick={() => { setEditingReview(null); setStars(0); setText("") }} type="button">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-3" onMouseLeave={() => setHover(0)}>
                 <span className="text-sm font-semibold">Sua nota</span>
                 <div className="flex gap-1 text-[#b55f40]" role="radiogroup" aria-label="Nota">
@@ -412,13 +504,13 @@ export default function BookPage(p: Props) {
               />
               {reviewError && <p className="mt-2 text-sm text-[#a8402b]" role="alert">{reviewError}</p>}
               <button className="mt-4 inline-flex h-11 items-center gap-2 rounded-full bg-[#245947] px-6 text-sm font-bold text-white transition hover:bg-[#1b4637]" type="submit">
-                <Icon className="h-4 w-4" name="pen" /> {p.user ? "Publicar avaliação" : "Entrar para avaliar"}
+                <Icon className="h-4 w-4" name="pen" /> {p.user ? (editingReview ? "Salvar avaliação" : "Publicar avaliação") : "Entrar para avaliar"}
               </button>
             </form>
 
-            <h3 className="mb-4 mt-10 font-serif text-xl font-semibold">Comentários ({p.reviews.length})</h3>
+            <h3 className="mb-4 mt-10 font-serif text-xl font-semibold">Comentários ({reviews.length})</h3>
             <ul className="space-y-4">
-              {p.reviews.map((r) => (
+              {reviews.map((r) => (
                 <li className="flex gap-4 rounded-2xl border border-[#ded8cb] bg-white/60 p-5" key={r.id}>
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#e7ded0] font-serif font-semibold text-[#6c503d]">{r.author.slice(0, 1)}</span>
                   <div className="min-w-0">
@@ -426,12 +518,26 @@ export default function BookPage(p: Props) {
                       <strong className="text-sm">{r.author}{r.mine && <span className="ml-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#245947]">Você</span>}</strong>
                       <Stars value={r.stars} />
                       <span className="text-xs text-[#77736a]">{r.date}</span>
+                      {r.mine && (
+                        <button
+                          className="text-xs font-semibold text-[#245947] hover:underline"
+                          onClick={() => {
+                            setEditingReview(r)
+                            setStars(r.stars)
+                            setText(r.text)
+                            setReviewError("")
+                          }}
+                          type="button"
+                        >
+                          Editar
+                        </button>
+                      )}
                     </div>
                     <p className="mt-2 text-sm leading-6 text-[#4a483f]">{r.text}</p>
                   </div>
                 </li>
               ))}
-              {p.reviews.length === 0 && <li className="text-sm text-[#77736a]">Seja a primeira pessoa a comentar.</li>}
+              {reviews.length === 0 && <li className="text-sm text-[#77736a]">Seja a primeira pessoa a comentar.</li>}
             </ul>
           </div>
         </div>

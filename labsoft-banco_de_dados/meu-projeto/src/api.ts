@@ -19,11 +19,11 @@ export type UserProfile = {
 
 export type AuthResponse = {
   message: string
-  user?: UserProfile | null
-  users?: UserProfile[]
-  subscription?: {
+  user?: {
     id: number
+    name: string
     email: string
+    subscription_id: number
     subscription_type_id: number
   }
   assinatura?: {
@@ -31,6 +31,34 @@ export type AuthResponse = {
     email: string
     subscription_type_id: number
   }
+}
+
+export type UserBookRecord = {
+  id: number
+  id_livro: number
+  id_usuario: number
+  lido: boolean
+  baixado: boolean
+  lendo: boolean
+  pagina_lendo: number | null
+  favoritado: boolean
+  visualizado: boolean
+}
+
+export type UserReview = {
+  id: number
+  id_usuario: number
+  id_livro: number
+  rating: number
+  comment: string | null
+  nome_usuario: string
+}
+
+export type ReviewResponse = {
+  id_avaliacao: number
+  id_livro: number
+  estrelas: number
+  comentario?: string | null
 }
 
 function getErrorMessage(payload: unknown, fallback: string) {
@@ -87,6 +115,81 @@ export function register(email: string, password: string, subscriptionTypeId: nu
       password,
       subscription_type_id: subscriptionTypeId,
     }),
+  })
+}
+
+export function fetchUserProfile(userId: number) {
+  return request<UserProfile[]>(`/data/usuarios?offset=0&limit=100`).then((users) => {
+    const user = users.find((item) => item.id === userId)
+    if (!user) throw new Error("Não foi possível carregar o perfil.")
+    return user
+  })
+}
+
+export function fetchUserBookRecords(userId: number) {
+  return request<UserBookRecord[]>(`/data/livro_usuario?id_usuario=${userId}&offset=0&limit=100`)
+}
+
+export function updateUserBookRecord(
+  record: UserBookRecord,
+  field: "lido" | "baixado" | "favoritado" | "lendo" | "pagina",
+  value: boolean | number,
+) {
+  const path = field === "pagina" ? "pagina" : field
+  const key = field === "pagina" ? "pagina_lendo" : field
+  return request<{ message: string }>(`/data/livros_usuario/${path}`, {
+    method: "PATCH",
+    body: JSON.stringify({ id_livro_usuario: record.id, [key]: value }),
+  })
+}
+
+export function createUserBookRecord(userId: number, bookId: number, values: Partial<UserBookRecord> = {}) {
+  return request<{ livro_usuario: { id_livro_usuario: number } }>("/data/livro_usuario", {
+    method: "POST",
+    body: JSON.stringify({
+      id_usuario: userId,
+      id_livro: bookId,
+      lido: values.lido ?? false,
+      baixado: values.baixado ?? false,
+      lendo: values.lendo ?? false,
+      pagina_lendo: values.pagina_lendo ?? null,
+      favoritado: values.favoritado ?? false,
+    }),
+  })
+}
+
+export function fetchUserReviews(userId: number) {
+  return request<UserReview[]>(`/data/avaliacoes?id_usuario=${userId}&offset=0&limit=100`)
+}
+
+export function fetchBookReviews(bookId: number) {
+  return request<UserReview[]>(`/data/avaliacoes?id_livro=${bookId}&offset=0&limit=100`)
+}
+
+export function createReview(userId: number, bookId: number, stars: number, text: string) {
+  return request<{ avaliacao: ReviewResponse }>("/data/avaliacoes", {
+    method: "POST",
+    body: JSON.stringify({ id_usuario: userId, id_livro: bookId, estrelas: stars, comentario: text }),
+  })
+}
+
+export function updateReview(reviewId: number, userId: number, bookId: number, stars: number, text: string) {
+  return request<{ message: string }>(`/data/avaliacoes`, {
+    method: "PUT",
+    body: JSON.stringify({
+      id_avaliacao: reviewId,
+      id_usuario: userId,
+      id_livro: bookId,
+      estrelas: stars,
+      comentario: text,
+    }),
+  })
+}
+
+export function deleteReview(reviewId: number) {
+  return request<{ message: string }>("/data/avaliacoes", {
+    method: "DELETE",
+    body: JSON.stringify({ id_avaliacao: reviewId }),
   })
 }
 
