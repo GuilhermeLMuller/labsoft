@@ -1257,6 +1257,30 @@ def delete_avaliacao(avaliacao_data):
 from datetime import date
 from models import LivroUsuario
 
+CAMPOS_EDITAVEIS = {"lido", "baixado", "lendo", "favoritado", "pagina_lendo"}
+CAMPOS_COM_DATA = ("lido", "baixado", "favoritado")
+
+
+def _buscar_livro_usuario(session, id_usuario, id_livro):
+    return (
+        session.query(LivroUsuario)
+        .filter(
+            LivroUsuario.id_usuario == id_usuario,
+            LivroUsuario.id_livro == id_livro,
+        )
+        .first()
+    )
+
+
+def _aplicar_campos(registro, campos, hoje):
+    registro.data_visualizado = hoje
+    for campo, valor in campos.items():
+        # só carimba a data quando o campo passa de falso para verdadeiro
+        if campo in CAMPOS_COM_DATA and valor and not getattr(registro, campo):
+            setattr(registro, f"data_{campo}", hoje)
+        setattr(registro, campo, valor)
+
+
 def create_livro_usuario(new_livro_usuario):
     session = SessionLocal()
     try:
@@ -1265,71 +1289,45 @@ def create_livro_usuario(new_livro_usuario):
         if not id_usuario or not id_livro:
             raise ValueError("Faltam dados obrigatórios (id_usuario, id_livro)")
 
-        existing = (
-            session.query(LivroUsuario)
-            .filter(
-                LivroUsuario.id_usuario == id_usuario,
-                LivroUsuario.id_livro == id_livro,
-            )
-            .first()
-        )
-        if existing:
-            existing.visualizado = True
-            existing.data_visualizado = date.today()
-            session.commit()
-            return {
-                "message": "Acesso ao livro registrado",
-                "livro_usuario": {
-                    "id_livro_usuario": existing.id_livro_usuario,
-                    "id_usuario": existing.id_usuario,
-                    "id_livro": existing.id_livro,
-                },
-            }
+        if session.get(models.Usuario, id_usuario) is None:
+            raise ValueError("Usuário não encontrado")
+        if session.get(models.Livro, id_livro) is None:
+            raise ValueError("Livro não encontrado")
 
-        # Configura a data de visualização
-        new_livro_usuario["data_visualizado"] = date.today()
-
-        # Injeta as datas automaticamente se o booleano vier como True
-        for campo in ["lido", "baixado", "favoritado"]:
-            if new_livro_usuario.get(campo):
-                new_livro_usuario[f"data_{campo}"] = date.today()
-
-        # O modelo assumirá os defaults para o que não for passado
-        livro_usuario = LivroUsuario(**new_livro_usuario)
-        
-        session.add(livro_usuario)
-        session.commit()
-        session.refresh(livro_usuario)
-
-        return {
-            "message": "Registro de livro do usuário criado com sucesso",
-            "livro_usuario": {
-                "id_livro_usuario": livro_usuario.id_livro_usuario,
-                "id_usuario": livro_usuario.id_usuario,
-                "id_livro": livro_usuario.id_livro,
-            },
+        hoje = date.today()
+        campos = {
+            k: v for k, v in new_livro_usuario.items()
+            if k in CAMPOS_EDITAVEIS and v is not None
         }
-    except IntegrityError:
-        session.rollback()
-        existing = (
-            session.query(LivroUsuario)
-            .filter(
-                LivroUsuario.id_usuario == id_usuario,
-                LivroUsuario.id_livro == id_livro,
-            )
-            .first()
-        )
-        if not existing:
-            raise
-        existing.visualizado = True
-        existing.data_visualizado = date.today()
-        session.commit()
+
+        registro = _buscar_livro_usuario(session, id_usuario, id_livro)
+        if registro is None:
+            registro = LivroUsuario(id_usuario=id_usuario, id_livro=id_livro)
+            _aplicar_campos(registro, campos, hoje)
+            session.add(registro)
+            mensagem = "Registro de livro do usuário criado com sucesso"
+        else:
+            _aplicar_campos(registro, campos, hoje)
+            mensagem = "Acesso ao livro registrado"
+
+        try:
+            session.commit()
+        except IntegrityError:
+            # outra requisição criou o par ao mesmo tempo
+            session.rollback()
+            registro = _buscar_livro_usuario(session, id_usuario, id_livro)
+            if registro is None:
+                raise
+            _aplicar_campos(registro, campos, hoje)
+            session.commit()
+            mensagem = "Acesso ao livro registrado"
+
         return {
-            "message": "Acesso ao livro registrado",
+            "message": mensagem,
             "livro_usuario": {
-                "id_livro_usuario": existing.id_livro_usuario,
-                "id_usuario": existing.id_usuario,
-                "id_livro": existing.id_livro,
+                "id_livro_usuario": registro.id_livro_usuario,
+                "id_usuario": registro.id_usuario,
+                "id_livro": registro.id_livro,
             },
         }
     except Exception:
