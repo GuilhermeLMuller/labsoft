@@ -490,7 +490,7 @@ def validate_upload_file(
     upload.file.seek(0)
 
 
-@app.put("/data/livros/{id_livro}/arquivos")
+@app.put("/livro/{id_livro}/upload")
 def upload_livro_arquivos(
     id_livro: int,
     pdf: UploadFile = File(...),

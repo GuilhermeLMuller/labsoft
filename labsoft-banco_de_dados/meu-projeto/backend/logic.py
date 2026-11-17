@@ -4,7 +4,7 @@ from sqlalchemy import func, or_
 
 from database import SessionLocal
 import models
-from storage import upload_file_to_r2
+from storage import *
 
 def list_subscription_types():
     session = SessionLocal()
