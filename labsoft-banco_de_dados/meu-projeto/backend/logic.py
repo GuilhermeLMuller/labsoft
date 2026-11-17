@@ -260,12 +260,20 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
         ]
     finally:
         session.close()
-def search_livros(query: str, limit: int = 50):
+
+def search_livros(query: str, limit: int = 50, id_usuario: int | None = None):
     session = SessionLocal()
     try:
         termo = (query or "").strip()
         if not termo:
             return []
+
+        idade = None
+        if id_usuario is not None:
+            usuario = session.get(models.Usuario, id_usuario)
+            if usuario is None:
+                raise ValueError("Usuário não encontrado")
+            idade = usuario.idade
 
         filtro = f"%{termo}%"
         livros = (
@@ -276,7 +284,8 @@ def search_livros(query: str, limit: int = 50):
                     models.Livro.autor.ilike(filtro),
                     models.Livro.genero.ilike(filtro),
                     models.Livro.sinopse.ilike(filtro),
-                )
+                ),
+                _filtro_idade(idade),
             )
             .order_by(models.Livro.id_livro)
             .limit(limit)
@@ -293,6 +302,7 @@ def search_livros(query: str, limit: int = 50):
                 "pais": livro.pais,
                 "sinopse": livro.sinopse,
                 "lingua": livro.linguagem,
+                "restricao_de_idade": livro.restricao_de_idade,
             }
             for livro in livros
         ]
@@ -1551,3 +1561,11 @@ def ler_livro_capa(id_livro):
         )
     finally:
         session.close()
+
+def _filtro_idade(idade):
+    """Livros sem restrição, ou com restrição <= idade. Idade desconhecida = 0."""
+    idade = idade if idade is not None else 0
+    return or_(
+        models.Livro.restricao_de_idade.is_(None),
+        models.Livro.restricao_de_idade <= idade,
+    )
