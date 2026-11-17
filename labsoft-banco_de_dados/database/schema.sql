@@ -1,4 +1,4 @@
-CREATE TYPE tipo_usuario AS ENUM ('administrador', 'autor', 'leitor');
+CREATE TYPE tipo_usuario AS ENUM ('administrador', 'autor', 'leitor', 'titular');
 
 CREATE TABLE tipo_assinatura (
     id_tipo_assinatura INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

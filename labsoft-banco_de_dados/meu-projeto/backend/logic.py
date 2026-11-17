@@ -408,12 +408,17 @@ def create_user(new_user):
         if not id_assinatura or not nome or not tipo_usuario:
             raise ValueError("Faltam dados obrigatórios")
 
-        if tipo_usuario not in {"administrador", "autor", "leitor"}:
+        if tipo_usuario not in TIPOS_USUARIO:
             raise ValueError("Tipo de usuário inválido")
 
         assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
+
+        if plan and usuarios_ativos >= plan.maximo_acessos:
+            raise ValueError("Limite de usuários atingido para esta assinatura.")
+
+        _validar_regras_titular(tipo_usuario, idade, eh_primeiro=(usuarios_ativos == 0))
 
         plan = (
             session.query(models.TipoAssinatura)
@@ -477,6 +482,24 @@ def replace_user(user):
         assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
+
+        if usuario.tipo == "titular" and tipo_usuario != "titular":
+            raise ValueError("O titular não pode deixar de ser titular.")
+
+        if tipo_usuario == "titular":
+            if idade < IDADE_MINIMA_TITULAR:
+                raise ValueError("O titular da conta deve ser maior de idade.")
+            outro_titular = (
+                session.query(models.Usuario)
+                .filter(
+                    models.Usuario.id_assinatura == id_assinatura,
+                    models.Usuario.tipo == "titular",
+                    models.Usuario.id_usuario != id_usuario,
+                )
+                .count()
+            )
+            if outro_titular:
+                raise ValueError("A conta já possui um titular.")
 
         usuario.id_assinatura = id_assinatura
         usuario.nome = nome
@@ -1569,3 +1592,15 @@ def _filtro_idade(idade):
         models.Livro.restricao_de_idade.is_(None),
         models.Livro.restricao_de_idade <= idade,
     )
+
+TIPOS_USUARIO = {"administrador", "autor", "leitor", "titular"}
+IDADE_MINIMA_TITULAR = 18
+
+def _validar_regras_titular(tipo, idade, eh_primeiro):
+    if eh_primeiro:
+        if tipo != "titular":
+            raise ValueError("O primeiro usuário da conta deve ser do tipo titular.")
+        if idade is None or idade < IDADE_MINIMA_TITULAR:
+            raise ValueError("O titular da conta deve ser maior de idade.")
+    elif tipo == "titular":
+        raise ValueError("A conta já possui um titular.")
