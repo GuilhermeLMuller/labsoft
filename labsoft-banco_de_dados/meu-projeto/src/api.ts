@@ -7,6 +7,17 @@ export type SubscriptionPlan = {
   max_users: number
 }
 
+export type BookDetailsResponse = {
+  id: number
+  titulo: string | null
+  autor: string
+  genero: string | null
+  sinopse: string | null
+  ano_de_publicação: number | null
+  pais: string | null
+  lingua: string | null
+}
+
 export type SubscriptionAccount = {
   id: number
   email: string
@@ -151,6 +162,10 @@ export function fetchUserBookRecords(userId: number) {
   return request<UserBookRecord[]>(`/data/livro_usuario?id_usuario=${userId}&offset=0&limit=100`)
 }
 
+export function fetchBook(bookId: number) {
+  return request<BookDetailsResponse>(`/livro/${bookId}`)
+}
+
 export function updateUserBookRecord(
   record: UserBookRecord,
   field: "lido" | "baixado" | "favoritado" | "lendo" | "pagina",
@@ -158,7 +173,7 @@ export function updateUserBookRecord(
 ) {
   const path = field === "pagina" ? "pagina" : field
   const key = field === "pagina" ? "pagina_lendo" : field
-  return request<{ message: string }>(`/data/livros_usuario/${path}`, {
+  return request<{ message: string }>(`/data/livro_usuario/${path}`, {
     method: "PATCH",
     body: JSON.stringify({ id_livro_usuario: record.id, [key]: value }),
   })
@@ -177,6 +192,10 @@ export function createUserBookRecord(userId: number, bookId: number, values: Par
       favoritado: values.favoritado ?? false,
     }),
   })
+}
+
+export function ensureUserBookRecord(userId: number, bookId: number) {
+  return createUserBookRecord(userId, bookId)
 }
 
 export async function setUserFavorite(userId: number, bookId: number, favorited: boolean) {

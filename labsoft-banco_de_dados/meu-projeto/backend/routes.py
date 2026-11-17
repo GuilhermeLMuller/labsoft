@@ -383,17 +383,6 @@ async def get_assinaturas(
     limit: int = Query(20, ge=1, le=100),):
     return list_assinaturas(email=email, id_tipo_assinatura=id_tipo_assinatura, id_assinatura=id_assinatura, offset=offset, limit=limit)
 
-@app.get("/data/usuarios")
-async def get_usuarios(
-    nome: Optional[str] = Query(None, description="Filtrar por nome"),
-    tipo: Optional[str] = Query(None, description="Filtrar por tipo"),
-    idade: Optional[int] = Query(None, description="Filtrar por idade"),
-    offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-):
-    # Implement your logic to retrieve usuarios here
-    return list_usuarios(nome=nome, tipo=tipo, idade=idade, offset=offset, limit=limit)  # Placeholder response
-
 @app.get("/data/livros")
 async def get_livros(
     genero: str | None = None,

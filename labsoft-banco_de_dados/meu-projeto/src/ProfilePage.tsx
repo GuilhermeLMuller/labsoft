@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { createUserBookRecord, createUserProfile, fetchSubscriptionAccount, fetchSubscriptionPlans, fetchUserBookRecords, fetchUserProfile, fetchUserReviews, listUsersBySubscription, updateSubscriptionPlan, updateUserAge, updateUserBookRecord, type SubscriptionPlan, type UserBookRecord, type UserProfile } from "./api"
+import { createUserBookRecord, createUserProfile, fetchBook, fetchSubscriptionAccount, fetchSubscriptionPlans, fetchUserBookRecords, fetchUserProfile, fetchUserReviews, listUsersBySubscription, updateSubscriptionPlan, updateUserAge, updateUserBookRecord, type SubscriptionPlan, type UserBookRecord, type UserProfile } from "./api"
 import { BookCover, Icon, books, type BookList, type IconName } from "./shared"
+
+const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
 
 type Props = {
   name: string
@@ -30,7 +32,49 @@ const tabs: { id: Tab; label: string; icon: IconName; public?: boolean }[] = [
   { id: "assinatura", label: "Assinatura", icon: "users" },
 ]
 
-const byId = (id: number) => books.find((b) => b.id === id)!
+type CatalogBook = (typeof books)[number]
+
+const byId = (id: number): CatalogBook =>
+  books.find((b) => b.id === id) ?? {
+    id,
+    title: `Livro #${id}`,
+    author: "Autor não informado",
+    genre: "Livro",
+    rating: "—",
+    color: "from-[#68736d] to-[#35443d]",
+    accent: "#e9e2d0",
+    mark: "catálogo",
+  }
+
+function mergeBook(book: CatalogBook, details: Awaited<ReturnType<typeof fetchBook>>): CatalogBook {
+  return {
+    ...book,
+    title: details.titulo || book.title,
+    author: details.autor || book.author,
+    genre: details.genero || book.genre,
+  }
+}
+
+function FavoriteCover({ book }: { book: CatalogBook }) {
+  const [coverError, setCoverError] = useState(false)
+
+  useEffect(() => {
+    setCoverError(false)
+  }, [book.id])
+
+  if (coverError) return <BookCover book={book} />
+
+  return (
+    <div className="relative aspect-[3/4.35] overflow-hidden rounded-md shadow-[0_14px_30px_rgba(41,30,22,0.16)]">
+      <img
+        alt={`Capa do livro ${book.title}`}
+        className="h-full w-full object-cover"
+        onError={() => setCoverError(true)}
+        src={`${API_URL}/livro/${book.id}/capa`}
+      />
+    </div>
+  )
+}
 
 const recent = [
   { id: 3, when: "Hoje, 09:14" },
@@ -124,6 +168,7 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
   const [newMember, setNewMember] = useState({ name: "", age: "" })
   const [planError, setPlanError] = useState("")
   const [profileError, setProfileError] = useState("")
+  const [bookCatalog, setBookCatalog] = useState<Record<number, CatalogBook>>({})
 
   useEffect(() => {
     let active = true
@@ -138,6 +183,20 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
         setReadIds(nextRecords.filter((record) => record.lido).map((record) => record.id_livro))
         setDownloaded(nextRecords.filter((record) => record.baixado).map((record) => record.id_livro))
         setProfileFavorites(nextRecords.filter((record) => record.favoritado).map((record) => record.id_livro))
+        const favoriteIds = nextRecords.filter((record) => record.favoritado).map((record) => record.id_livro)
+        const loadedBooks = await Promise.allSettled(favoriteIds.map((id) => fetchBook(id)))
+        if (active) {
+          setBookCatalog((current) => {
+            const next = { ...current }
+            loadedBooks.forEach((result, index) => {
+              if (result.status === "fulfilled") {
+                const id = favoriteIds[index]
+                next[id] = mergeBook(byId(id), result.value)
+              }
+            })
+            return next
+          })
+        }
         nextRecords.forEach((record) => {
           if (record.pagina_lendo !== null) setProgress?.(record.id_livro, record.pagina_lendo)
         })
@@ -168,6 +227,7 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
   const initials = name.trim().slice(0, 2).toUpperCase()
   const p = periods[period]
   const selectedPlan = plans.find((item) => item.id === plan)
+  const favoriteBooks = profileFavorites.map((id) => bookCatalog[id] ?? byId(id))
   const formatPrice = (price: number) => price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
   const toggleVisitor = () => {
@@ -504,12 +564,12 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
               <Empty icon="heart" text="Favorite livros no catálogo e eles aparecem aqui, visíveis para quem abrir seu perfil." title="Nenhum favorito ainda" />
             ) : (
               <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-5">
-                {profileFavorites.map((id) => {
-                  const b = byId(id)
+                {favoriteBooks.map((b) => {
+                  const id = b.id
                   return (
                     <article key={id}>
                       <div className="relative">
-                        <BookCover book={b} />
+                        <FavoriteCover book={b} />
                         {!visitor && (
                           <button
                             aria-label={`Remover ${b.title} dos favoritos`}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { createReview, createUserBookRecord, deleteReview, fetchBookReviews, setUserFavorite, updateReview } from "./api"
+import { createReview, deleteReview, ensureUserBookRecord, fetchBookReviews, setUserFavorite, updateReview } from "./api"
 import { BookCover, Icon, books, type BookList } from "./shared"
 
 const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
@@ -63,8 +63,17 @@ function Stars({ value, size = "h-4 w-4" }: { value: number; size?: string }) {
 }
 
 function Reader({ bookId, startPage, onPage, onClose }: { bookId: number; startPage: number; onPage: (p: number) => void; onClose: () => void }) {
-  const book = books.find((b) => b.id === bookId)!
-  const total = bookDetails[bookId].pages
+  const book = books.find((b) => b.id === bookId) ?? {
+    id: bookId,
+    title: `Livro #${bookId}`,
+    author: "Autor não informado",
+    genre: "Livro",
+    rating: "—",
+    color: "from-[#68736d] to-[#35443d]",
+    accent: "#e9e2d0",
+    mark: "catálogo",
+  }
+  const total = bookDetails[bookId]?.pages ?? 1
   const [page, setPage] = useState(startPage)
 
   useEffect(() => {
@@ -153,7 +162,12 @@ export default function BookPage(p: Props) {
     accent: "#e9d5a5",
     mark: "uma leitura",
   }
-  const d = bookDetails[p.bookId] ?? { pages: 250, year: 2024, size: "1,0 MB", synopsis: ["Sinopse não disponível."] }
+  const d = bookDetails[p.bookId] ?? {
+    pages: 1,
+    year: 0,
+    synopsis: ["As informações deste livro ainda não estão disponíveis no catálogo."],
+    size: "—",
+  } ?? { pages: 250, year: 2024, size: "1,0 MB", synopsis: ["Sinopse não disponível."] }
   const [reading, setReading] = useState(false)
   const [stars, setStars] = useState(0)
   const [hover, setHover] = useState(0)
@@ -224,7 +238,7 @@ export default function BookPage(p: Props) {
   useEffect(() => {
     if (!p.userId) return
     let active = true
-    createUserBookRecord(p.userId, p.bookId)
+    ensureUserBookRecord(p.userId, p.bookId)
       .catch((error: Error) => {
         if (active) setToast(error.message)
       })
