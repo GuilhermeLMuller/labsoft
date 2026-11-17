@@ -7,6 +7,12 @@ export type SubscriptionPlan = {
   max_users: number
 }
 
+export type SubscriptionAccount = {
+  id: number
+  email: string
+  subscription_type_id: number
+}
+
 export type UserProfile = {
   id: number
   name: string
@@ -100,6 +106,21 @@ export function fetchSubscriptionPlans() {
   return request<SubscriptionPlan[]>("/auth/plans")
 }
 
+export function fetchSubscriptionAccount(subscriptionId: number) {
+  return request<SubscriptionAccount[]>(`/data/assinaturas?id_assinatura=${subscriptionId}&offset=0&limit=1`).then((accounts) => {
+    const account = accounts[0]
+    if (!account) throw new Error("Não foi possível carregar a assinatura.")
+    return account
+  })
+}
+
+export function updateSubscriptionPlan(subscriptionId: number, planId: number) {
+  return request<{ message: string }>("/data/assinaturas/tipo", {
+    method: "PATCH",
+    body: JSON.stringify({ id_assinatura: subscriptionId, id_tipo_assinatura: planId }),
+  })
+}
+
 export function login(email: string, password: string) {
   return request<AuthResponse>("/auth/login", {
     method: "POST",
@@ -158,6 +179,17 @@ export function createUserBookRecord(userId: number, bookId: number, values: Par
   })
 }
 
+export async function setUserFavorite(userId: number, bookId: number, favorited: boolean) {
+  const record = (await fetchUserBookRecords(userId)).find((item) => item.id_livro === bookId)
+  if (record) {
+    await updateUserBookRecord(record, "favoritado", favorited)
+    return
+  }
+  if (favorited) {
+    await createUserBookRecord(userId, bookId, { favoritado: true })
+  }
+}
+
 export function fetchUserReviews(userId: number) {
   return request<UserReview[]>(`/data/avaliacoes?id_usuario=${userId}&offset=0&limit=100`)
 }
@@ -208,5 +240,12 @@ export function createUserProfile(subscriptionId: number, name: string, type: st
       gostos: [],
       estatisticas: {},
     }),
+  })
+}
+
+export function updateUserAge(userId: number, age: number) {
+  return request<{ message: string }>("/data/usuarios/idade", {
+    method: "PATCH",
+    body: JSON.stringify({ id_usuario: userId, idade: age }),
   })
 }

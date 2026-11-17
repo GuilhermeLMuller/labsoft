@@ -378,10 +378,10 @@ async def delete_livro_usuario_endpoint(data: DeleteLivroUsuarioInput):
 async def get_assinaturas(    
     email: Optional[str] = Query(None, description="Filtrar por email"),
     id_tipo_assinatura: Optional[int] = Query(None, description="Filtrar por tipo de assinatura"),
+    id_assinatura: Optional[int] = Query(None, description="Filtrar por assinatura"),
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),):
-    # Implement your logic to retrieve assinaturas here
-    return list_assinaturas(email=email, id_tipo_assinatura=id_tipo_assinatura, offset=offset, limit=limit)  # Placeholder response
+    return list_assinaturas(email=email, id_tipo_assinatura=id_tipo_assinatura, id_assinatura=id_assinatura, offset=offset, limit=limit)
 
 @app.get("/data/usuarios")
 async def get_usuarios(

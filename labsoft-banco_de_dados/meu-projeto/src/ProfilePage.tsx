@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { createUserBookRecord, fetchSubscriptionPlans, fetchUserBookRecords, fetchUserReviews, updateUserBookRecord, type SubscriptionPlan, type UserBookRecord } from "./api"
+import { createUserBookRecord, createUserProfile, fetchSubscriptionAccount, fetchSubscriptionPlans, fetchUserBookRecords, fetchUserProfile, fetchUserReviews, listUsersBySubscription, updateSubscriptionPlan, updateUserAge, updateUserBookRecord, type SubscriptionPlan, type UserBookRecord, type UserProfile } from "./api"
 import { BookCover, Icon, books, type BookList, type IconName } from "./shared"
 
 type Props = {
@@ -60,6 +60,12 @@ const periods = {
 
 const fmt = (n: number) => n.toLocaleString("pt-BR")
 
+function displayPlanName(name?: string) {
+  if (!name) return "carregando..."
+  const normalized = name.replace(/^plano\s+/i, "").trim()
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : name
+}
+
 function ageBand(age: number) {
   if (age < 10) return "Infantil"
   if (age < 14) return "Infantojuvenil"
@@ -113,20 +119,20 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
   const [newList, setNewList] = useState("")
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [plan, setPlan] = useState<number | null>(null)
-  const [members, setMembers] = useState([
-    { id: 1, name, age: 36, owner: true },
-    { id: 2, name: "Marina", age: 34, owner: false },
-    { id: 3, name: "Davi", age: 12, owner: false },
-    { id: 4, name: "Alice", age: 8, owner: false },
-  ])
+  const [subscriptionId, setSubscriptionId] = useState<number | null>(null)
+  const [members, setMembers] = useState<UserProfile[]>([])
   const [newMember, setNewMember] = useState({ name: "", age: "" })
   const [planError, setPlanError] = useState("")
   const [profileError, setProfileError] = useState("")
 
   useEffect(() => {
     let active = true
-    Promise.all([fetchUserBookRecords(userId), fetchUserReviews(userId), fetchSubscriptionPlans()])
-      .then(([nextRecords, nextReviews, availablePlans]) => {
+    Promise.all([fetchUserBookRecords(userId), fetchUserReviews(userId), fetchUserProfile(userId), fetchSubscriptionPlans()])
+      .then(async ([nextRecords, nextReviews, profile, availablePlans]) => {
+        const [account, subscriptionUsers] = await Promise.all([
+          fetchSubscriptionAccount(profile.subscription_id),
+          listUsersBySubscription(profile.subscription_id),
+        ])
         if (!active) return
         setRecords(nextRecords)
         setReadIds(nextRecords.filter((record) => record.lido).map((record) => record.id_livro))
@@ -142,7 +148,9 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
           text: review.comment ?? "",
         })))
         setPlans(availablePlans)
-        setPlan((current) => current ?? availablePlans.find((item) => item.max_users >= 4)?.id ?? availablePlans[0]?.id ?? null)
+        setSubscriptionId(account.id)
+        setPlan(account.subscription_type_id)
+        setMembers(subscriptionUsers)
       })
       .catch((error: Error) => {
         if (active) {
@@ -220,17 +228,32 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
       return
     }
     setPlanError("")
-    setMembers((m) => [...m, { id: Date.now(), name: newMember.name.trim(), age, owner: false }])
-    setNewMember({ name: "", age: "" })
+    void createUserProfile(
+      subscriptionId ?? 0,
+      newMember.name.trim(),
+      "leitor",
+      age,
+    )
+      .then((result) => {
+        setMembers((current) => [...current, result.user])
+        setNewMember({ name: "", age: "" })
+      })
+      .catch((error: Error) => setPlanError(error.message))
   }
 
-  const changePlan = (next: SubscriptionPlan) => {
+  const changePlan = async (next: SubscriptionPlan) => {
     if (next.max_users < members.length) {
       setPlanError(`Remova perfis antes de mudar para o plano ${next.name}, que permite até ${next.max_users} acesso${next.max_users === 1 ? "" : "s"}."`)
       return
     }
+    if (!subscriptionId) return
     setPlanError("")
-    setPlan(next.id)
+    try {
+      await updateSubscriptionPlan(subscriptionId, next.id)
+      setPlan(next.id)
+    } catch (error) {
+      setPlanError(error instanceof Error ? error.message : "Não foi possível alterar o plano.")
+    }
   }
 
   const downloadBadge = (id: number) =>
@@ -277,7 +300,7 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
                   </span>
                   {!visitor && (
                     <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]">
-                      Plano {selectedPlan?.name ?? "carregando..."}
+                      Plano {displayPlanName(selectedPlan?.name)}
                     </span>
                   )}
                 </div>
@@ -490,12 +513,14 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
                         {!visitor && (
                           <button
                             aria-label={`Remover ${b.title} dos favoritos`}
+                            aria-pressed="true"
                             className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-[#b65c40] text-white shadow-sm transition hover:bg-[#8e3f31]"
                             onClick={() => {
                               setProfileFavorites((items) => items.filter((item) => item !== id))
                               onToggleFavorite(id)
                               void persistBookState(id, "favoritado", false)
                             }}
+                            title="Desfavoritar"
                             type="button"
                           >
                             <Icon className="h-4 w-4" filled name="heart" />
@@ -688,7 +713,7 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
                     </span>
                     <span className="flex-1">
                       <span className="flex items-baseline justify-between gap-3">
-                        <strong className="font-serif text-xl">{availablePlan.name}</strong>
+                        <strong className="font-serif text-xl">{displayPlanName(availablePlan.name)}</strong>
                         <span className="text-sm font-semibold text-[#a35d3e]">{formatPrice(availablePlan.price)}/mês</span>
                       </span>
                       <span className="mt-1 block text-sm text-[#77736a]">
@@ -715,11 +740,11 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
                       {m.name.slice(0, 1).toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">{m.name}{m.owner && <span className="ml-2 text-xs font-bold uppercase tracking-[0.12em] text-[#245947]">Titular</span>}</p>
-                      <p className="text-xs text-[#77736a]">{ageBand(m.age)}{m.age < 18 && " · conteúdo limitado pela idade"}</p>
+                      <p className="truncate font-semibold">{m.name}{m.id === userId && <span className="ml-2 text-xs font-bold uppercase tracking-[0.12em] text-[#245947]">Titular</span>}</p>
+                      <p className="text-xs text-[#77736a]">{m.age === null || m.age === undefined ? "Idade não informada" : `${ageBand(m.age)}${m.age < 18 ? " · conteúdo limitado pela idade" : ""}`}</p>
                     </div>
-                    {m.owner ? (
-                      <span className="inline-flex items-center gap-1 text-sm text-[#77736a]"><Icon className="h-4 w-4" name="lock" /> {m.age} anos</span>
+                    {m.id === userId ? (
+                      <span className="inline-flex items-center gap-1 text-sm text-[#77736a]"><Icon className="h-4 w-4" name="lock" /> {m.age ?? "—"} anos</span>
                     ) : (
                       <>
                         <label className="flex items-center gap-2 text-sm text-[#77736a]">
@@ -730,8 +755,14 @@ export default function ProfilePage({ name, userId, favorites, onToggleFavorite,
                             max={110}
                             min={0}
                             onChange={(e) => setMembers((list) => list.map((x) => (x.id === m.id ? { ...x, age: Math.max(0, Number(e.target.value)) } : x)))}
+                            onBlur={(e) => {
+                              const nextAge = Number(e.target.value)
+                              if (Number.isInteger(nextAge) && nextAge >= 0 && nextAge <= 120) {
+                                void updateUserAge(m.id, nextAge).catch((error: Error) => setPlanError(error.message))
+                              }
+                            }}
                             type="number"
-                            value={m.age}
+                            value={m.age ?? ""}
                           />
                         </label>
                         <button

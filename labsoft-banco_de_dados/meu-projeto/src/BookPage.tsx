@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { createReview, createUserBookRecord, deleteReview, fetchBookReviews, updateReview } from "./api"
+import { createReview, createUserBookRecord, deleteReview, fetchBookReviews, setUserFavorite, updateReview } from "./api"
 import { BookCover, Icon, books, type BookList } from "./shared"
 
 const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
@@ -283,6 +283,18 @@ export default function BookPage(p: Props) {
 
   const guard = (fn: () => void) => () => (p.user ? fn() : p.onRequireAuth())
 
+  const toggleFavorite = async () => {
+    if (!p.userId) return p.onRequireAuth()
+    const nextValue = !isFavorite
+    try {
+      await setUserFavorite(p.userId, p.bookId, nextValue)
+      p.onToggleFavorite(p.bookId)
+      setToast(nextValue ? "Livro favoritado." : "Livro removido dos favoritos.")
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Não foi possível atualizar o favorito.")
+    }
+  }
+
   const download = guard(() => {
     if (!isDownloaded) p.setDownloaded((x) => [...x, p.bookId])
     const url = `${API_URL}/livro/${p.bookId}/pdf/download`
@@ -406,7 +418,7 @@ export default function BookPage(p: Props) {
               <button
                 aria-pressed={isFavorite}
                 className={`inline-flex h-12 items-center gap-2 rounded-full border px-5 text-sm font-bold transition ${isFavorite ? "border-[#b65c40] bg-[#b65c40] text-white" : "border-[#ccc4b4] text-[#4f4c46] hover:border-[#b65c40] hover:text-[#b65c40]"}`}
-                onClick={guard(() => p.onToggleFavorite(p.bookId))}
+                onClick={() => void toggleFavorite()}
                 type="button"
               >
                 <Icon className="h-4 w-4" filled={isFavorite} name="heart" /> {isFavorite ? "Favoritado" : "Favoritar"}
