@@ -7,6 +7,23 @@ export type SubscriptionPlan = {
   max_users: number
 }
 
+export type BookDetailsResponse = {
+  id: number
+  titulo: string | null
+  autor: string
+  genero: string | null
+  sinopse: string | null
+  ano_de_publicação: number | null
+  pais: string | null
+  lingua: string | null
+}
+
+export type SubscriptionAccount = {
+  id: number
+  email: string
+  subscription_type_id: number
+}
+
 export type UserProfile = {
   id: number
   name: string
@@ -100,6 +117,21 @@ export function fetchSubscriptionPlans() {
   return request<SubscriptionPlan[]>("/auth/plans")
 }
 
+export function fetchSubscriptionAccount(subscriptionId: number) {
+  return request<SubscriptionAccount[]>(`/data/assinaturas?id_assinatura=${subscriptionId}&offset=0&limit=1`).then((accounts) => {
+    const account = accounts[0]
+    if (!account) throw new Error("Não foi possível carregar a assinatura.")
+    return account
+  })
+}
+
+export function updateSubscriptionPlan(subscriptionId: number, planId: number) {
+  return request<{ message: string }>("/data/assinaturas/tipo", {
+    method: "PATCH",
+    body: JSON.stringify({ id_assinatura: subscriptionId, id_tipo_assinatura: planId }),
+  })
+}
+
 export function login(email: string, password: string) {
   return request<AuthResponse>("/auth/login", {
     method: "POST",
@@ -130,6 +162,10 @@ export function fetchUserBookRecords(userId: number) {
   return request<UserBookRecord[]>(`/data/livro_usuario?id_usuario=${userId}&offset=0&limit=100`)
 }
 
+export function fetchBook(bookId: number) {
+  return request<BookDetailsResponse>(`/livro/${bookId}`)
+}
+
 export function updateUserBookRecord(
   record: UserBookRecord,
   field: "lido" | "baixado" | "favoritado" | "lendo" | "pagina",
@@ -137,7 +173,7 @@ export function updateUserBookRecord(
 ) {
   const path = field === "pagina" ? "pagina" : field
   const key = field === "pagina" ? "pagina_lendo" : field
-  return request<{ message: string }>(`/data/livros_usuario/${path}`, {
+  return request<{ message: string }>(`/data/livro_usuario/${path}`, {
     method: "PATCH",
     body: JSON.stringify({ id_livro_usuario: record.id, [key]: value }),
   })
@@ -156,6 +192,21 @@ export function createUserBookRecord(userId: number, bookId: number, values: Par
       favoritado: values.favoritado ?? false,
     }),
   })
+}
+
+export function ensureUserBookRecord(userId: number, bookId: number) {
+  return createUserBookRecord(userId, bookId)
+}
+
+export async function setUserFavorite(userId: number, bookId: number, favorited: boolean) {
+  const record = (await fetchUserBookRecords(userId)).find((item) => item.id_livro === bookId)
+  if (record) {
+    await updateUserBookRecord(record, "favoritado", favorited)
+    return
+  }
+  if (favorited) {
+    await createUserBookRecord(userId, bookId, { favoritado: true })
+  }
 }
 
 export function fetchUserReviews(userId: number) {
@@ -208,5 +259,12 @@ export function createUserProfile(subscriptionId: number, name: string, type: st
       gostos: [],
       estatisticas: {},
     }),
+  })
+}
+
+export function updateUserAge(userId: number, age: number) {
+  return request<{ message: string }>("/data/usuarios/idade", {
+    method: "PATCH",
+    body: JSON.stringify({ id_usuario: userId, idade: age }),
   })
 }
