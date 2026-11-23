@@ -14,7 +14,7 @@ type SearchBook = {
   lingua?: string | null
 }
 
-export default function SearchResultsPage({ query, onBack, onOpenBook }: { query: string; onBack: () => void; onOpenBook: (id: number) => void }) {
+export default function SearchResultsPage({ query, userId, onBack, onOpenBook }: { query: string; userId: number | null; onBack: () => void; onOpenBook: (id: number) => void }) {
   const [books, setBooks] = useState<SearchBook[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -36,7 +36,9 @@ export default function SearchResultsPage({ query, onBack, onOpenBook }: { query
       setError("")
 
       try {
-        const response = await fetch(`${API_URL}/data/livros/busca?query=${encodeURIComponent(term)}&limit=20`, {
+        const params = new URLSearchParams({ query: term, limit: "20" })
+        if (userId !== null) params.set("id_usuario", String(userId))
+        const response = await fetch(`${API_URL}/data/livros/busca?${params}`, {
           signal: controller.signal,
         })
 
@@ -60,7 +62,7 @@ export default function SearchResultsPage({ query, onBack, onOpenBook }: { query
     loadBooks()
 
     return () => controller.abort()
-  }, [query])
+  }, [query, userId])
 
   return (
     <main className="min-h-screen bg-[#f8f5ef] text-[#25251f]">
