@@ -251,7 +251,7 @@ export default function App() {
   }
 
   if (currentView === "search") {
-    return <SearchResultsPage query={query} onBack={() => setCurrentView("home")} onOpenBook={openBook} />
+    return <SearchResultsPage query={query} userId={user?.id ?? null} onBack={() => setCurrentView("home")} onOpenBook={openBook} />
   }
 
   if (currentView === "book" && selectedBookId !== null) {

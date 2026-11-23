@@ -403,10 +403,14 @@ async def get_livros(
 async def search_livros_endpoint(
     query: str = Query(default="", min_length=1),
     limit: int = Query(50, ge=1, le=200),
+    id_usuario: Optional[int] = Query(default=None),
 ):
     if not query or not query.strip():
         return []
-    return search_livros(query=query, limit=limit)
+    try:
+        return search_livros(query=query, limit=limit, id_usuario=id_usuario)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
 
 @app.get("/data/avaliacoes")
 async def get_avaliacoes(

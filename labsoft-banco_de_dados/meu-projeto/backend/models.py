@@ -138,5 +138,4 @@ class LivroUsuario(Base):
     pagina_lendo = Column(Integer, nullable=True)
     data_favoritado = Column(Date, nullable=True)
     favoritado = Column(Boolean, nullable=False, server_default=text("false"))
-    visualizado = Column(Boolean, nullable=False, server_default=text("false"))
     data_visualizado = Column(Date, nullable=True)

@@ -262,12 +262,20 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
         ]
     finally:
         session.close()
-def search_livros(query: str, limit: int = 50):
+
+def search_livros(query: str, limit: int = 50, id_usuario: int | None = None):
     session = SessionLocal()
     try:
         termo = (query or "").strip()
         if not termo:
             return []
+
+        idade = None
+        if id_usuario is not None:
+            usuario = session.get(models.Usuario, id_usuario)
+            if usuario is None:
+                raise ValueError("Usuário não encontrado")
+            idade = usuario.idade
 
         filtro = f"%{termo}%"
         livros = (
@@ -278,7 +286,8 @@ def search_livros(query: str, limit: int = 50):
                     models.Livro.autor.ilike(filtro),
                     models.Livro.genero.ilike(filtro),
                     models.Livro.sinopse.ilike(filtro),
-                )
+                ),
+                _filtro_idade(idade),
             )
             .order_by(models.Livro.id_livro)
             .limit(limit)
@@ -295,6 +304,7 @@ def search_livros(query: str, limit: int = 50):
                 "pais": livro.pais,
                 "sinopse": livro.sinopse,
                 "lingua": livro.linguagem,
+                "restricao_de_idade": livro.restricao_de_idade,
             }
             for livro in livros
         ]
@@ -400,12 +410,17 @@ def create_user(new_user):
         if not id_assinatura or not nome or not tipo_usuario:
             raise ValueError("Faltam dados obrigatórios")
 
-        if tipo_usuario not in {"administrador", "autor", "leitor"}:
+        if tipo_usuario not in TIPOS_USUARIO:
             raise ValueError("Tipo de usuário inválido")
 
         assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
+
+        if plan and usuarios_ativos >= plan.maximo_acessos:
+            raise ValueError("Limite de usuários atingido para esta assinatura.")
+
+        _validar_regras_titular(tipo_usuario, idade, eh_primeiro=(usuarios_ativos == 0))
 
         plan = (
             session.query(models.TipoAssinatura)
@@ -469,6 +484,24 @@ def replace_user(user):
         assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
+
+        if usuario.tipo == "titular" and tipo_usuario != "titular":
+            raise ValueError("O titular não pode deixar de ser titular.")
+
+        if tipo_usuario == "titular":
+            if idade < IDADE_MINIMA_TITULAR:
+                raise ValueError("O titular da conta deve ser maior de idade.")
+            outro_titular = (
+                session.query(models.Usuario)
+                .filter(
+                    models.Usuario.id_assinatura == id_assinatura,
+                    models.Usuario.tipo == "titular",
+                    models.Usuario.id_usuario != id_usuario,
+                )
+                .count()
+            )
+            if outro_titular:
+                raise ValueError("A conta já possui um titular.")
 
         usuario.id_assinatura = id_assinatura
         usuario.nome = nome
@@ -1226,6 +1259,30 @@ def delete_avaliacao(avaliacao_data):
 from datetime import date
 from models import LivroUsuario
 
+CAMPOS_EDITAVEIS = {"lido", "baixado", "lendo", "favoritado", "pagina_lendo"}
+CAMPOS_COM_DATA = ("lido", "baixado", "favoritado")
+
+
+def _buscar_livro_usuario(session, id_usuario, id_livro):
+    return (
+        session.query(LivroUsuario)
+        .filter(
+            LivroUsuario.id_usuario == id_usuario,
+            LivroUsuario.id_livro == id_livro,
+        )
+        .first()
+    )
+
+
+def _aplicar_campos(registro, campos, hoje):
+    registro.data_visualizado = hoje
+    for campo, valor in campos.items():
+        # só carimba a data quando o campo passa de falso para verdadeiro
+        if campo in CAMPOS_COM_DATA and valor and not getattr(registro, campo):
+            setattr(registro, f"data_{campo}", hoje)
+        setattr(registro, campo, valor)
+
+
 def create_livro_usuario(new_livro_usuario):
     session = SessionLocal()
     try:
@@ -1234,71 +1291,45 @@ def create_livro_usuario(new_livro_usuario):
         if not id_usuario or not id_livro:
             raise ValueError("Faltam dados obrigatórios (id_usuario, id_livro)")
 
-        existing = (
-            session.query(LivroUsuario)
-            .filter(
-                LivroUsuario.id_usuario == id_usuario,
-                LivroUsuario.id_livro == id_livro,
-            )
-            .first()
-        )
-        if existing:
-            existing.visualizado = True
-            existing.data_visualizado = date.today()
-            session.commit()
-            return {
-                "message": "Acesso ao livro registrado",
-                "livro_usuario": {
-                    "id_livro_usuario": existing.id_livro_usuario,
-                    "id_usuario": existing.id_usuario,
-                    "id_livro": existing.id_livro,
-                },
-            }
+        if session.get(models.Usuario, id_usuario) is None:
+            raise ValueError("Usuário não encontrado")
+        if session.get(models.Livro, id_livro) is None:
+            raise ValueError("Livro não encontrado")
 
-        # Configura a data de visualização
-        new_livro_usuario["data_visualizado"] = date.today()
-
-        # Injeta as datas automaticamente se o booleano vier como True
-        for campo in ["lido", "baixado", "favoritado"]:
-            if new_livro_usuario.get(campo):
-                new_livro_usuario[f"data_{campo}"] = date.today()
-
-        # O modelo assumirá os defaults para o que não for passado
-        livro_usuario = LivroUsuario(**new_livro_usuario)
-        
-        session.add(livro_usuario)
-        session.commit()
-        session.refresh(livro_usuario)
-
-        return {
-            "message": "Registro de livro do usuário criado com sucesso",
-            "livro_usuario": {
-                "id_livro_usuario": livro_usuario.id_livro_usuario,
-                "id_usuario": livro_usuario.id_usuario,
-                "id_livro": livro_usuario.id_livro,
-            },
+        hoje = date.today()
+        campos = {
+            k: v for k, v in new_livro_usuario.items()
+            if k in CAMPOS_EDITAVEIS and v is not None
         }
-    except IntegrityError:
-        session.rollback()
-        existing = (
-            session.query(LivroUsuario)
-            .filter(
-                LivroUsuario.id_usuario == id_usuario,
-                LivroUsuario.id_livro == id_livro,
-            )
-            .first()
-        )
-        if not existing:
-            raise
-        existing.visualizado = True
-        existing.data_visualizado = date.today()
-        session.commit()
+
+        registro = _buscar_livro_usuario(session, id_usuario, id_livro)
+        if registro is None:
+            registro = LivroUsuario(id_usuario=id_usuario, id_livro=id_livro)
+            _aplicar_campos(registro, campos, hoje)
+            session.add(registro)
+            mensagem = "Registro de livro do usuário criado com sucesso"
+        else:
+            _aplicar_campos(registro, campos, hoje)
+            mensagem = "Acesso ao livro registrado"
+
+        try:
+            session.commit()
+        except IntegrityError:
+            # outra requisição criou o par ao mesmo tempo
+            session.rollback()
+            registro = _buscar_livro_usuario(session, id_usuario, id_livro)
+            if registro is None:
+                raise
+            _aplicar_campos(registro, campos, hoje)
+            session.commit()
+            mensagem = "Acesso ao livro registrado"
+
         return {
-            "message": "Acesso ao livro registrado",
+            "message": mensagem,
             "livro_usuario": {
-                "id_livro_usuario": existing.id_livro_usuario,
-                "id_usuario": existing.id_usuario,
-                "id_livro": existing.id_livro,
+                "id_livro_usuario": registro.id_livro_usuario,
+                "id_usuario": registro.id_usuario,
+                "id_livro": registro.id_livro,
             },
         }
     except Exception:
@@ -1553,3 +1584,23 @@ def ler_livro_capa(id_livro):
         )
     finally:
         session.close()
+
+def _filtro_idade(idade):
+    """Livros sem restrição, ou com restrição <= idade. Idade desconhecida = 0."""
+    idade = idade if idade is not None else 0
+    return or_(
+        models.Livro.restricao_de_idade.is_(None),
+        models.Livro.restricao_de_idade <= idade,
+    )
+
+TIPOS_USUARIO = {"administrador", "autor", "leitor", "titular"}
+IDADE_MINIMA_TITULAR = 18
+
+def _validar_regras_titular(tipo, idade, eh_primeiro):
+    if eh_primeiro:
+        if tipo != "titular":
+            raise ValueError("O primeiro usuário da conta deve ser do tipo titular.")
+        if idade is None or idade < IDADE_MINIMA_TITULAR:
+            raise ValueError("O titular da conta deve ser maior de idade.")
+    elif tipo == "titular":
+        raise ValueError("A conta já possui um titular.")
