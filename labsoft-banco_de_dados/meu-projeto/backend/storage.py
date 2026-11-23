@@ -1,7 +1,7 @@
-from pathlib import Path
-#Configs do client
-import boto3
 import os
+from pathlib import Path
+
+import boto3
 from botocore.config import Config
 from dotenv import load_dotenv
 
@@ -15,9 +15,7 @@ r2 = boto3.client(
     region_name="auto",
     config=Config(signature_version="s3v4"),
 )
-
-#def book_path(id_livro: int) -> Path:
- #   return STORAGE_DIR / "livros" / f"{id_livro}.pdf"
+R2_BUCKET_NAME = os.environ["R2_BUCKET_NAME"]
 
 def gerar_url_book(client, bucket: str, id_livro: int, titulo: str) -> str:
     return client.generate_presigned_url(
@@ -60,3 +58,18 @@ def gerar_url_cover(client, bucket: str, id_livro: int, titulo: str) -> str:
         },
         ExpiresIn=300,
     )
+class R2StorageError(Exception):
+    pass
+
+
+def upload_file_to_r2(file_obj, object_key: str, content_type: str) -> str:
+    try:
+        r2.upload_fileobj(
+            file_obj,
+            R2_BUCKET_NAME,
+            object_key,
+            ExtraArgs={"ContentType": content_type},
+        )
+    except Exception as exc:
+        raise R2StorageError("Falha ao enviar arquivo para o armazenamento.") from exc
+    return object_key
