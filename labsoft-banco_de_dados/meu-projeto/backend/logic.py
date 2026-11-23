@@ -140,7 +140,7 @@ def login_account(login_data):
     finally:
         session.close()
 
-def list_assinaturas(email = None, id_tipo_assinatura = None, offset: int = 0, limit: int = 20):
+def list_assinaturas(email = None, id_tipo_assinatura = None, id_assinatura = None, offset: int = 0, limit: int = 20):
     session = SessionLocal()
     try:
         assinaturas = session.query(models.Assinatura)
@@ -148,6 +148,8 @@ def list_assinaturas(email = None, id_tipo_assinatura = None, offset: int = 0, l
             assinaturas = assinaturas.filter(models.Assinatura.email.ilike(f"%{email}%"))
         if id_tipo_assinatura is not None:
             assinaturas = assinaturas.filter(models.Assinatura.id_tipo_assinatura == id_tipo_assinatura)
+        if id_assinatura is not None:
+            assinaturas = assinaturas.filter(models.Assinatura.id_assinatura == id_assinatura)
         assinaturas = (
             assinaturas.order_by(models.Assinatura.id_assinatura)
             .offset(offset)

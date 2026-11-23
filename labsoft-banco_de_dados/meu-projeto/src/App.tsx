@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import AuthPage, { type AuthMode } from "./AuthPage"
 import BookPage, { type Review, initialReviews } from "./BookPage"
 import ProfilePage from "./ProfilePage"
 import SearchResultsPage from "./SearchResultsPage"
+import { fetchUserBookRecords } from "./api"
 import { type BookList } from "./shared"
 
 type IconName =
@@ -177,6 +178,24 @@ export default function App() {
   const updateProgress = useCallback((id: number, page: number) => {
     setProgress((current) => ({ ...current, [id]: page }))
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setFavorites([])
+      return
+    }
+    let active = true
+    fetchUserBookRecords(user.id)
+      .then((records) => {
+        if (active) setFavorites(records.filter((record) => record.favoritado).map((record) => record.id_livro))
+      })
+      .catch(() => {
+        if (active) setFavorites([])
+      })
+    return () => {
+      active = false
+    }
+  }, [user])
 
   const visibleBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR")
