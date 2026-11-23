@@ -32,7 +32,6 @@ const entities = {
       { key: "pais", label: "País" },
       { key: "linguagem", label: "Idioma" },
       { key: "sinopse", label: "Sinopse", type: "textarea" },
-      { key: "capa", label: "URL da capa", type: "url" },
       { key: "genero", label: "Gênero" },
       { key: "restricao_de_idade", label: "Classificação etária", type: "number", min: 0 },
     ],

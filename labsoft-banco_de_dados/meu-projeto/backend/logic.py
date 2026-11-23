@@ -42,7 +42,6 @@ def create_book(book_data):
             "pais": livro.pais,
             "linguagem": livro.linguagem,
             "sinopse": livro.sinopse,
-            "capa": livro.capa,
             "genero": livro.genero,
             "restricao_de_idade": livro.restricao_de_idade,
         }
@@ -256,7 +255,6 @@ def list_livros(genero = None, autor = None, pais = None, linguagem = None, titu
                 "sinopse": livro.sinopse,
                 "lingua": livro.linguagem,
                 "restricao_de_idade": livro.restricao_de_idade,
-                "capa": livro.capa,
             }
             for livro in livros
         ]
@@ -819,29 +817,6 @@ def update_book_sinopse(book_data):
         livro.sinopse = nova_sinopse
         session.commit()
         return {"message": "Sinopse do livro atualizada com sucesso"}
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
-def update_book_capa(book_data):
-    session = SessionLocal()
-    try:
-        id_livro = book_data.get("id_livro") or book_data.get("id")
-        nova_capa = book_data.get("capa")
-
-        if not id_livro or not nova_capa:
-            raise ValueError("Faltam dados obrigatórios")
-
-        livro = session.get(models.Livro, id_livro)
-        if not livro:
-            raise ValueError("Livro não encontrado")
-
-        livro.capa = nova_capa
-        session.commit()
-        return {"message": "Capa do livro atualizada com sucesso"}
     except Exception:
         session.rollback()
         raise

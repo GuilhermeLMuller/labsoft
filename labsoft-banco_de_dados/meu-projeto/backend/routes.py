@@ -170,14 +170,6 @@ async def update_book_sinopse_endpoint(book_data: UpdateBookSinopseInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/capa")
-async def update_book_capa_endpoint(book_data: UpdateBookCapaInput):
-    try:
-        return update_book_capa(book_data.model_dump())
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"message": str(exc)})
-
-
 @app.patch("/data/livros/idade")
 async def update_book_idade_endpoint(book_data: UpdateBookIdadeInput):
     try:

@@ -42,10 +42,6 @@ class UpdateBookSinopseInput(BaseModel):
     id_livro: int
     sinopse: str
 
-class UpdateBookCapaInput(BaseModel):
-    id_livro: int
-    capa: str
-
 class UpdateBookIdadeInput(BaseModel):
     id_livro: int
     restricao_de_idade: int

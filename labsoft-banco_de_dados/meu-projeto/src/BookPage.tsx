@@ -188,7 +188,6 @@ export default function BookPage(p: Props) {
     pais?: string | null
     lingua?: string | null
     restricao_de_idade?: number | null
-    capa?: string | null
   } | null>(null)
 
   useEffect(() => {

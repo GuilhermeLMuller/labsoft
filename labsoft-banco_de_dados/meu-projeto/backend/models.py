@@ -93,7 +93,6 @@ class Livro(Base):
     pais = Column(String(100), nullable=True)
     linguagem = Column(String(100), nullable=True)
     sinopse = Column(Text, nullable=True)
-    capa = Column(Text, nullable=True)
     titulo = Column(String(255), nullable=True)
     genero = Column(String(100), nullable=True)
     restricao_de_idade = Column(SmallInteger, nullable=True)
