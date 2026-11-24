@@ -200,7 +200,7 @@ def list_usuarios(nome = None, tipo = None, idade = None, id_assinatura = None, 
 def list_livros(genero = None, autor = None, pais = None, linguagem = None, titulo = None, ano_publicacao = None, offset: int = 0, limit: int = 20):
     session = SessionLocal()
     try:
-        livros = session.query(models.Livro)
+        livros = session.query(models.Livro).filter(models.Livro.deletado.is_(False))
         if genero:
             livros = livros.filter(models.Livro.genero.ilike(f"%{genero}%"))
         if autor:
@@ -261,6 +261,7 @@ def search_livros(query: str, limit: int = 50, id_usuario: int | None = None):
                     models.Livro.sinopse.ilike(filtro),
                 ),
                 _filtro_idade(idade),
+                models.Livro.deletado.is_(False),
             )
             .order_by(models.Livro.id_livro)
             .limit(limit)
@@ -336,7 +337,7 @@ def list_avaliacoes(
 def list_livro_usuario(id_usuario=None, id_livro=None, offset: int = 0, limit: int = 20):
     session = SessionLocal()
     try:
-        livro_usuario = session.query(models.LivroUsuario)
+        livro_usuario = session.query(models.LivroUsuario).join(models.Livro, models.Livro.id_livro == models.LivroUsuario.id_livro).filter(models.Livro.deletado.is_(False))
         if id_usuario:
             livro_usuario = livro_usuario.filter(models.LivroUsuario.id_usuario == id_usuario)
         if id_livro:
@@ -382,17 +383,12 @@ def create_user(new_user):
         if not id_assinatura or not nome or not tipo_usuario:
             raise ValueError("Faltam dados obrigatórios")
 
-        if tipo_usuario not in TIPOS_USUARIO:
+        if tipo_usuario not in {"leitor", "autor"}:
             raise ValueError("Tipo de usuário inválido")
 
         assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
-
-        if plan and usuarios_ativos >= plan.maximo_acessos:
-            raise ValueError("Limite de usuários atingido para esta assinatura.")
-
-        _validar_regras_titular(tipo_usuario, idade, eh_primeiro=(usuarios_ativos == 0))
 
         plan = (
             session.query(models.TipoAssinatura)
@@ -882,7 +878,7 @@ def delete_book(book_data):
         if not livro:
             raise ValueError("Livro não encontrado")
 
-        session.delete(livro)
+        livro.deletado = True
         session.commit()
         return {"message": "Livro removido com sucesso"}
     except Exception:
@@ -1242,7 +1238,8 @@ def create_livro_usuario(new_livro_usuario):
 
         if session.get(models.Usuario, id_usuario) is None:
             raise ValueError("Usuário não encontrado")
-        if session.get(models.Livro, id_livro) is None:
+        livro = session.get(models.Livro, id_livro)
+        if livro is None or livro.deletado:
             raise ValueError("Livro não encontrado")
 
         hoje = date.today()
@@ -1468,7 +1465,7 @@ def get_livro(id_livro):
     session=SessionLocal()
     try:
             livros = session.query(models.Livro)
-            livro = livros.filter(models.Livro.id_livro == id_livro).first()
+            livro = livros.filter(models.Livro.id_livro == id_livro, models.Livro.deletado.is_(False)).first()
             if livro is None:
                 raise ValueError("Livro não encontrado")
             return {
@@ -1487,7 +1484,7 @@ def get_livro_estatisticas(id_livro):
     session=SessionLocal()
     try:
             livros = session.query(models.Livro)
-            livro = livros.filter(models.Livro.id_livro == id_livro).first()
+            livro = livros.filter(models.Livro.id_livro == id_livro, models.Livro.deletado.is_(False)).first()
             if livro is None:
                 raise ValueError("Livro não encontrado")
             downloads = session.query(models.LivroUsuario).filter(models.LivroUsuario.id_livro == id_livro, models.LivroUsuario.baixado == True).count()
@@ -1505,7 +1502,7 @@ def ler_livro_pdf(id_livro):
     session = SessionLocal()
     try:
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
-        if not livro:
+        if not livro or livro.deletado:
             raise ValueError("Livro não encontrado")
         return gerar_url_book(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
     finally:
@@ -1514,7 +1511,7 @@ def download_livro_pdf(id_livro):
     session = SessionLocal()
     try:
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
-        if not livro:
+        if not livro or livro.deletado:
             raise ValueError("Livro não encontrado")
         return gerar_url_book_download(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
     finally:
@@ -1523,7 +1520,7 @@ def ler_livro_capa(id_livro):
     session = SessionLocal()
     try:
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
-        if not livro:
+        if not livro or livro.deletado:
             raise ValueError("Livro não encontrado")
         return gerar_url_cover(
             r2,
@@ -1555,6 +1552,92 @@ def _validar_regras_titular(tipo, idade, eh_primeiro):
         raise ValueError("A conta já possui um titular.")
 
 
+def _separar_categorias(genero):
+    partes = [p.strip() for p in (genero or "").split(";") if p.strip()]
+    return partes or ["Sem categoria"]
+
+
+def get_dashboard(limit: int = 20):
+    session = SessionLocal()
+    try:
+        LU = models.LivroUsuario
+
+        total_usuarios = session.query(func.count(models.Usuario.id_usuario)).scalar()
+
+        usuarios_por_tipo = (
+            session.query(models.Usuario.tipo, func.count(models.Usuario.id_usuario))
+            .group_by(models.Usuario.tipo)
+            .all()
+        )
+
+        # Cada linha de livro_usuario = 1 acesso (usuário que abriu o conteúdo)
+        acessos = func.count(LU.id_livro_usuario)
+        lidos = func.count(LU.id_livro_usuario).filter(LU.lido.is_(True))
+        baixados = func.count(LU.id_livro_usuario).filter(LU.baixado.is_(True))
+        favoritos = func.count(LU.id_livro_usuario).filter(LU.favoritado.is_(True))
+
+        livros = (
+            session.query(
+                models.Livro.id_livro,
+                models.Livro.titulo,
+                models.Livro.genero,
+                acessos.label("acessos"),
+                lidos.label("lidos"),
+                baixados.label("baixados"),
+                favoritos.label("favoritos"),
+            )
+            .outerjoin(LU, LU.id_livro == models.Livro.id_livro)
+            .group_by(models.Livro.id_livro, models.Livro.titulo, models.Livro.genero)
+            .all()
+        )
+
+        # Totais gerais: cada acesso conta uma vez, independente de quantas categorias o livro tem
+        total_acessos = sum(l.acessos for l in livros)
+        total_lidos = sum(l.lidos for l in livros)
+        total_baixados = sum(l.baixados for l in livros)
+
+        # Por categoria: o livro entra em cada uma das suas categorias
+        categorias = {}
+        for l in livros:
+            for nome in _separar_categorias(l.genero):
+                chave = nome.casefold()  # "Romance" e "romance" viram a mesma categoria
+                item = categorias.setdefault(
+                    chave,
+                    {"categoria": nome, "acessos": 0, "lidos": 0, "baixados": 0, "livros": 0},
+                )
+                item["acessos"] += l.acessos
+                item["lidos"] += l.lidos
+                item["baixados"] += l.baixados
+                item["livros"] += 1
+        por_categoria = sorted(
+            categorias.values(), key=lambda c: (-c["acessos"], c["categoria"].casefold())
+        )
+
+        # Ranking por conteúdo
+        ranking = sorted(livros, key=lambda l: (-l.acessos, l.id_livro))[:limit]
+
+        return {
+            "total_usuarios": total_usuarios,
+            "usuarios_por_tipo": {tipo: total for tipo, total in usuarios_por_tipo},
+            "total_acessos": total_acessos,
+            "total_lidos": total_lidos,
+            "total_baixados": total_baixados,
+            "acessos_por_conteudo": [
+                {
+                    "id_livro": l.id_livro,
+                    "titulo": l.titulo,
+                    "categorias": _separar_categorias(l.genero),
+                    "acessos": l.acessos,
+                    "lidos": l.lidos,
+                    "baixados": l.baixados,
+                    "favoritos": l.favoritos,
+                }
+                for l in ranking
+            ],
+            "acessos_por_categoria": por_categoria,
+        }
+    finally:
+        session.close()
 from sqlalchemy import func, or_, cast, Float
 
 

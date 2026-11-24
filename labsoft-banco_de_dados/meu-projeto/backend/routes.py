@@ -1,4 +1,7 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends, HTTPException, UploadFile, File, Form
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from sqlalchemy import or_
+import secrets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 import starlette.status as status
@@ -24,6 +27,79 @@ app.add_middleware(
 )
 
 models.Base.metadata.create_all(bind=engine)
+
+security = HTTPBasic()
+
+def require_admin(credentials: HTTPBasicCredentials = Depends(security), id_usuario: int = Query(...)):
+    session = SessionLocal()
+    try:
+        account = session.query(models.Assinatura).filter(models.Assinatura.email == credentials.username).first()
+        if not account or not secrets.compare_digest(account.senha_hash.encode(), credentials.password.encode()):
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
+        user = session.get(models.Usuario, id_usuario)
+        if not user or user.id_assinatura != account.id_assinatura or user.tipo != "administrador":
+            raise HTTPException(status_code=403, detail="Acesso permitido apenas a administradores")
+    finally:
+        session.close()
+
+
+@app.get("/admin/livros", dependencies=[Depends(require_admin)])
+def admin_search_books(query: str = Query(..., min_length=1), limit: int = Query(100, ge=1, le=200)):
+    session = SessionLocal()
+    try:
+        term = f"%{query.strip()}%"
+        if not query.strip():
+            return []
+        books = session.query(models.Livro).filter(or_(models.Livro.titulo.ilike(term), models.Livro.autor.ilike(term), models.Livro.genero.ilike(term), models.Livro.sinopse.ilike(term))).order_by(models.Livro.id_livro).limit(limit).all()
+        return [{"id": book.id_livro, "titulo": book.titulo, "autor": book.autor, "genero": book.genero, "deletado": book.deletado} for book in books]
+    finally:
+        session.close()
+
+
+@app.post("/admin/livros", dependencies=[Depends(require_admin)])
+def admin_create_book(titulo: str = Form(..., min_length=1, max_length=255), autor: str = Form(..., min_length=1, max_length=150), genero: str = Form(..., min_length=1, max_length=100), ano_de_publicacao: int = Form(..., ge=0, le=32767), pais: str = Form("", max_length=100), linguagem: str = Form("", max_length=100), sinopse: str = Form(""), restricao_de_idade: int = Form(0, ge=0, le=32767), pdf: UploadFile = File(...), capa: UploadFile = File(...)):
+    if not titulo.strip() or not autor.strip() or not genero.strip():
+        raise HTTPException(status_code=400, detail="Título, autor e gênero são obrigatórios")
+    if pdf.file.read(5) != b"%PDF-" or capa.file.read(3) != b"\xff\xd8\xff":
+        raise HTTPException(status_code=400, detail="Envie um PDF válido e uma capa JPEG válida")
+    pdf.file.seek(0)
+    capa.file.seek(0)
+    session = SessionLocal()
+    uploaded = []
+    try:
+        book = models.Livro(titulo=titulo.strip(), autor=autor.strip(), genero=genero.strip(), ano_de_publicacao=ano_de_publicacao, pais=pais or None, linguagem=linguagem or None, sinopse=sinopse or None, restricao_de_idade=restricao_de_idade)
+        session.add(book)
+        session.flush()
+        bucket = os.environ["R2_BUCKET_NAME"]
+        for file, key, content_type in [(pdf, f"livros/{book.id_livro}.pdf", "application/pdf"), (capa, f"capas/{book.id_livro}.jpg", "image/jpeg")]:
+            uploaded.append(key)
+            r2.upload_fileobj(file.file, bucket, key, ExtraArgs={"ContentType": content_type})
+        session.commit()
+        return {"message": "Livro cadastrado com sucesso", "id": book.id_livro}
+    except Exception:
+        session.rollback()
+        for key in uploaded:
+            try:
+                r2.delete_object(Bucket=os.environ["R2_BUCKET_NAME"], Key=key)
+            except Exception:
+                pass
+        raise
+    finally:
+        session.close()
+
+
+@app.patch("/admin/livros/{book_id}", dependencies=[Depends(require_admin)])
+def admin_set_book_status(book_id: int, deletado: bool):
+    session = SessionLocal()
+    try:
+        book = session.get(models.Livro, book_id)
+        if not book:
+            raise HTTPException(status_code=404, detail="Livro não encontrado")
+        book.deletado = deletado
+        session.commit()
+        return {"message": "Livro removido" if deletado else "Livro restaurado"}
+    finally:
+        session.close()
 
 
 @app.get("/")
@@ -73,7 +149,7 @@ async def create_user_endpoint(user_data: CreateUserInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.put("/data/usuarios")
+@app.put("/data/usuarios", dependencies=[Depends(require_admin)])
 async def replace_user_endpoint(user_data: ReplaceUserInput):
     try:
         return replace_user(user_data.model_dump())
@@ -89,7 +165,7 @@ async def update_user_name_endpoint(user_data: UpdateUserNameInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/usuarios/tipo")
+@app.patch("/data/usuarios/tipo", dependencies=[Depends(require_admin)])
 async def update_user_tipo_endpoint(user_data: UpdateUserTipoInput):
     try:
         return update_user_tipo(user_data.model_dump())
@@ -114,7 +190,7 @@ async def delete_user_endpoint(user_data: DeleteUserInput):
 
 
 ## livros ##
-@app.post("/data/livros")
+@app.post("/data/livros", dependencies=[Depends(require_admin)])
 async def create_book_endpoint(book_data: CreateBookInput):
     try:
         return create_book(book_data.model_dump())
@@ -122,7 +198,7 @@ async def create_book_endpoint(book_data: CreateBookInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.put("/data/livros")
+@app.put("/data/livros", dependencies=[Depends(require_admin)])
 async def replace_book_endpoint(book_data: ReplaceBookInput):
     try:
         return replace_book(book_data.model_dump())
@@ -130,7 +206,7 @@ async def replace_book_endpoint(book_data: ReplaceBookInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/autor")
+@app.patch("/data/livros/autor", dependencies=[Depends(require_admin)])
 async def update_book_autor_endpoint(book_data: UpdateBookAutorInput):
     try:
         return update_book_autor(book_data.model_dump())
@@ -138,7 +214,7 @@ async def update_book_autor_endpoint(book_data: UpdateBookAutorInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/ano")
+@app.patch("/data/livros/ano", dependencies=[Depends(require_admin)])
 async def update_book_ano_endpoint(book_data: UpdateBookAnoInput):
     try:
         return update_book_ano(book_data.model_dump())
@@ -146,7 +222,7 @@ async def update_book_ano_endpoint(book_data: UpdateBookAnoInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/pais")
+@app.patch("/data/livros/pais", dependencies=[Depends(require_admin)])
 async def update_book_pais_endpoint(book_data: UpdateBookPaisInput):
     try:
         return update_book_pais(book_data.model_dump())
@@ -154,7 +230,7 @@ async def update_book_pais_endpoint(book_data: UpdateBookPaisInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/linguagem")
+@app.patch("/data/livros/linguagem", dependencies=[Depends(require_admin)])
 async def update_book_linguagem_endpoint(book_data: UpdateBookLinguagemInput):
     try:
         return update_book_linguagem(book_data.model_dump())
@@ -162,7 +238,7 @@ async def update_book_linguagem_endpoint(book_data: UpdateBookLinguagemInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/sinopse")
+@app.patch("/data/livros/sinopse", dependencies=[Depends(require_admin)])
 async def update_book_sinopse_endpoint(book_data: UpdateBookSinopseInput):
     try:
         return update_book_sinopse(book_data.model_dump())
@@ -170,7 +246,7 @@ async def update_book_sinopse_endpoint(book_data: UpdateBookSinopseInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/idade")
+@app.patch("/data/livros/idade", dependencies=[Depends(require_admin)])
 async def update_book_idade_endpoint(book_data: UpdateBookIdadeInput):
     try:
         return update_book_idade(book_data.model_dump())
@@ -178,7 +254,7 @@ async def update_book_idade_endpoint(book_data: UpdateBookIdadeInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/titulo")
+@app.patch("/data/livros/titulo", dependencies=[Depends(require_admin)])
 async def update_book_titulo_endpoint(book_data: UpdateBookTituloInput):
     try:
         return update_book_titulo(book_data.model_dump())
@@ -186,7 +262,7 @@ async def update_book_titulo_endpoint(book_data: UpdateBookTituloInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/livros/genero")
+@app.patch("/data/livros/genero", dependencies=[Depends(require_admin)])
 async def update_book_genero_endpoint(book_data: UpdateBookGeneroInput):
     try:
         return update_book_genero(book_data.model_dump())
@@ -194,7 +270,7 @@ async def update_book_genero_endpoint(book_data: UpdateBookGeneroInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.delete("/data/livros")
+@app.delete("/data/livros", dependencies=[Depends(require_admin)])
 async def delete_book_endpoint(book_data: DeleteBookInput):
     try:
         return delete_book(book_data.model_dump())
@@ -211,7 +287,7 @@ async def create_assinatura_endpoint(assinatura_data: CreateAssinaturaInput):
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.put("/data/assinaturas")
+@app.put("/data/assinaturas", dependencies=[Depends(require_admin)])
 async def replace_assinatura_endpoint(assinatura_data: ReplaceAssinaturaInput):
     try:
         return replace_assinatura(assinatura_data.model_dump())
@@ -235,7 +311,7 @@ async def update_assinatura_email_endpoint(assinatura_data: UpdateAssinaturaEmai
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
-@app.patch("/data/assinaturas/senha")
+@app.patch("/data/assinaturas/senha", dependencies=[Depends(require_admin)])
 async def update_assinatura_senha_endpoint(assinatura_data: UpdateAssinaturaSenhaInput):
     try:
         return update_assinatura_senha(assinatura_data.model_dump())
@@ -466,6 +542,11 @@ async def get_pdf_download(id_livro: int):
         return JSONResponse(status_code=404, content={"message": str(exc)})
 
 
+@app.get("/admin/dashboard")
+async def get_dashboard_endpoint(
+    limit: int = Query(20, ge=1, le=100, description="Quantidade de conteúdos no ranking de acessos"),
+):
+    return get_dashboard(limit=limit)
 #recomendação
 @app.get("/data/usuarios/{id_usuario}/recomendacoes")
 async def get_recomendacoes(

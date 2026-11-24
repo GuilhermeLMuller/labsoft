@@ -33,7 +33,8 @@ CREATE TABLE livros (
     sinopse TEXT,
     titulo VARCHAR(255),
     genero VARCHAR(100),
-    restricao_de_idade SMALLINT CHECK (restricao_de_idade >= 0)
+    restricao_de_idade SMALLINT CHECK (restricao_de_idade >= 0),
+    deletado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE avaliacao (
