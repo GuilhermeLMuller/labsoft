@@ -1486,3 +1486,25 @@ def recommend_livros(id_usuario: int, offset: int = 0, limit: int = 20):
         ]
     finally:
         session.close()
+
+def update_book_capa(book_data):
+    session = SessionLocal()
+    try:
+        id_livro = book_data.get("id_livro") or book_data.get("id")
+        nova_capa = book_data.get("capa")
+
+        if not id_livro or not nova_capa:
+            raise ValueError("Faltam dados obrigatórios")
+
+        livro = session.get(models.Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+
+        livro.capa = nova_capa
+        session.commit()
+        return {"message": "Capa do livro atualizada com sucesso"}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
