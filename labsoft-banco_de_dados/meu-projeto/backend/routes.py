@@ -464,3 +464,16 @@ async def get_pdf_download(id_livro: int):
         return RedirectResponse(url=arquivo, status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
+
+
+#recomendação
+@app.get("/data/usuarios/{id_usuario}/recomendacoes")
+async def get_recomendacoes(
+    id_usuario: int,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=50),
+):
+    try:
+        return recommend_livros(id_usuario, offset=offset, limit=limit)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
