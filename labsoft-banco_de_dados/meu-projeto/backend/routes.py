@@ -466,7 +466,7 @@ async def get_pdf_download(id_livro: int):
         return JSONResponse(status_code=404, content={"message": str(exc)})
 
 
-@app.get("/data/dashboard")
+@app.get("/admin/dashboard")
 async def get_dashboard_endpoint(
     limit: int = Query(20, ge=1, le=100, description="Quantidade de conteúdos no ranking de acessos"),
 ):
