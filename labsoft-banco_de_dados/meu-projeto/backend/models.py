@@ -96,6 +96,7 @@ class Livro(Base):
     titulo = Column(String(255), nullable=True)
     genero = Column(String(100), nullable=True)
     restricao_de_idade = Column(SmallInteger, nullable=True)
+    deletado = Column(Boolean, nullable=False, server_default=text("false"))
 
 
 class Avaliacao(Base):

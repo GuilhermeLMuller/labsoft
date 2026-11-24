@@ -225,7 +225,7 @@ def list_usuarios(nome = None, tipo = None, idade = None, id_assinatura = None, 
 def list_livros(genero = None, autor = None, pais = None, linguagem = None, titulo = None, ano_publicacao = None, offset: int = 0, limit: int = 20):
     session = SessionLocal()
     try:
-        livros = session.query(models.Livro)
+        livros = session.query(models.Livro).filter(models.Livro.deletado.is_(False))
         if genero:
             livros = livros.filter(models.Livro.genero.ilike(f"%{genero}%"))
         if autor:
@@ -286,6 +286,7 @@ def search_livros(query: str, limit: int = 50, id_usuario: int | None = None):
                     models.Livro.sinopse.ilike(filtro),
                 ),
                 _filtro_idade(idade),
+                models.Livro.deletado.is_(False),
             )
             .order_by(models.Livro.id_livro)
             .limit(limit)
@@ -361,7 +362,7 @@ def list_avaliacoes(
 def list_livro_usuario(id_usuario=None, id_livro=None, offset: int = 0, limit: int = 20):
     session = SessionLocal()
     try:
-        livro_usuario = session.query(models.LivroUsuario)
+        livro_usuario = session.query(models.LivroUsuario).join(models.Livro, models.Livro.id_livro == models.LivroUsuario.id_livro).filter(models.Livro.deletado.is_(False))
         if id_usuario:
             livro_usuario = livro_usuario.filter(models.LivroUsuario.id_usuario == id_usuario)
         if id_livro:
@@ -385,7 +386,7 @@ def list_livro_usuario(id_usuario=None, id_livro=None, offset: int = 0, limit: i
                 "pagina_lendo": item.pagina_lendo,
                 "data_favoritado": item.data_favoritado,
                 "favoritado": item.favoritado,
-                "visualizado": item.visualizado,
+                "visualizado": item.data_visualizado is not None,
                 "data_visualizado": item.data_visualizado,
             }
             for item in livro_usuario
@@ -408,17 +409,12 @@ def create_user(new_user):
         if not id_assinatura or not nome or not tipo_usuario:
             raise ValueError("Faltam dados obrigatórios")
 
-        if tipo_usuario not in TIPOS_USUARIO:
+        if tipo_usuario not in {"leitor", "autor"}:
             raise ValueError("Tipo de usuário inválido")
 
         assinatura = session.get(models.Assinatura, id_assinatura)
         if not assinatura:
             raise ValueError("Assinatura não encontrada")
-
-        if plan and usuarios_ativos >= plan.maximo_acessos:
-            raise ValueError("Limite de usuários atingido para esta assinatura.")
-
-        _validar_regras_titular(tipo_usuario, idade, eh_primeiro=(usuarios_ativos == 0))
 
         plan = (
             session.query(models.TipoAssinatura)
@@ -908,7 +904,7 @@ def delete_book(book_data):
         if not livro:
             raise ValueError("Livro não encontrado")
 
-        session.delete(livro)
+        livro.deletado = True
         session.commit()
         return {"message": "Livro removido com sucesso"}
     except Exception:
@@ -1268,7 +1264,8 @@ def create_livro_usuario(new_livro_usuario):
 
         if session.get(models.Usuario, id_usuario) is None:
             raise ValueError("Usuário não encontrado")
-        if session.get(models.Livro, id_livro) is None:
+        livro = session.get(models.Livro, id_livro)
+        if livro is None or livro.deletado:
             raise ValueError("Livro não encontrado")
 
         hoje = date.today()
@@ -1494,7 +1491,7 @@ def get_livro(id_livro):
     session=SessionLocal()
     try:
             livros = session.query(models.Livro)
-            livro = livros.filter(models.Livro.id_livro == id_livro).first()
+            livro = livros.filter(models.Livro.id_livro == id_livro, models.Livro.deletado.is_(False)).first()
             if livro is None:
                 raise ValueError("Livro não encontrado")
             return {
@@ -1513,7 +1510,7 @@ def get_livro_estatisticas(id_livro):
     session=SessionLocal()
     try:
             livros = session.query(models.Livro)
-            livro = livros.filter(models.Livro.id_livro == id_livro).first()
+            livro = livros.filter(models.Livro.id_livro == id_livro, models.Livro.deletado.is_(False)).first()
             if livro is None:
                 raise ValueError("Livro não encontrado")
             downloads = session.query(models.LivroUsuario).filter(models.LivroUsuario.id_livro == id_livro, models.LivroUsuario.baixado == True).count()
@@ -1531,7 +1528,7 @@ def ler_livro_pdf(id_livro):
     session = SessionLocal()
     try:
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
-        if not livro:
+        if not livro or livro.deletado:
             raise ValueError("Livro não encontrado")
         return gerar_url_book(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
     finally:
@@ -1540,7 +1537,7 @@ def download_livro_pdf(id_livro):
     session = SessionLocal()
     try:
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
-        if not livro:
+        if not livro or livro.deletado:
             raise ValueError("Livro não encontrado")
         return gerar_url_book_download(r2, os.environ["R2_BUCKET_NAME"], id_livro, livro.titulo)
     finally:
@@ -1549,7 +1546,7 @@ def ler_livro_capa(id_livro):
     session = SessionLocal()
     try:
         livro = session.query(models.Livro).filter(models.Livro.id_livro == id_livro).first()
-        if not livro:
+        if not livro or livro.deletado:
             raise ValueError("Livro não encontrado")
         return gerar_url_cover(
             r2,
