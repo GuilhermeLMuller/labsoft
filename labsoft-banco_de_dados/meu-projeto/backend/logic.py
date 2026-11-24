@@ -1581,6 +1581,11 @@ def _validar_regras_titular(tipo, idade, eh_primeiro):
         raise ValueError("A conta já possui um titular.")
 
 
+def _separar_categorias(genero):
+    partes = [p.strip() for p in (genero or "").split(";") if p.strip()]
+    return partes or ["Sem categoria"]
+
+
 def get_dashboard(limit: int = 20):
     session = SessionLocal()
     try:
@@ -1600,8 +1605,7 @@ def get_dashboard(limit: int = 20):
         baixados = func.count(LU.id_livro_usuario).filter(LU.baixado.is_(True))
         favoritos = func.count(LU.id_livro_usuario).filter(LU.favoritado.is_(True))
 
-        # Acessos por conteúdo (livro)
-        por_conteudo = (
+        livros = (
             session.query(
                 models.Livro.id_livro,
                 models.Livro.titulo,
@@ -1613,54 +1617,53 @@ def get_dashboard(limit: int = 20):
             )
             .outerjoin(LU, LU.id_livro == models.Livro.id_livro)
             .group_by(models.Livro.id_livro, models.Livro.titulo, models.Livro.genero)
-            .order_by(acessos.desc(), models.Livro.id_livro)
-            .limit(limit)
             .all()
         )
 
-        # Acessos por categoria (gênero)
-        categoria = func.coalesce(models.Livro.genero, "Sem categoria")
-        por_categoria = (
-            session.query(
-                categoria.label("categoria"),
-                acessos.label("acessos"),
-                lidos.label("lidos"),
-                baixados.label("baixados"),
-            )
-            .select_from(models.Livro)
-            .outerjoin(LU, LU.id_livro == models.Livro.id_livro)
-            .group_by(categoria)
-            .order_by(acessos.desc(), categoria)
-            .all()
+        # Totais gerais: cada acesso conta uma vez, independente de quantas categorias o livro tem
+        total_acessos = sum(l.acessos for l in livros)
+        total_lidos = sum(l.lidos for l in livros)
+        total_baixados = sum(l.baixados for l in livros)
+
+        # Por categoria: o livro entra em cada uma das suas categorias
+        categorias = {}
+        for l in livros:
+            for nome in _separar_categorias(l.genero):
+                chave = nome.casefold()  # "Romance" e "romance" viram a mesma categoria
+                item = categorias.setdefault(
+                    chave,
+                    {"categoria": nome, "acessos": 0, "lidos": 0, "baixados": 0, "livros": 0},
+                )
+                item["acessos"] += l.acessos
+                item["lidos"] += l.lidos
+                item["baixados"] += l.baixados
+                item["livros"] += 1
+        por_categoria = sorted(
+            categorias.values(), key=lambda c: (-c["acessos"], c["categoria"].casefold())
         )
+
+        # Ranking por conteúdo
+        ranking = sorted(livros, key=lambda l: (-l.acessos, l.id_livro))[:limit]
 
         return {
             "total_usuarios": total_usuarios,
             "usuarios_por_tipo": {tipo: total for tipo, total in usuarios_por_tipo},
-            "total_acessos": sum(row.acessos for row in por_categoria),
-            "total_lidos": sum(row.lidos for row in por_categoria),
-            "total_baixados": sum(row.baixados for row in por_categoria),
+            "total_acessos": total_acessos,
+            "total_lidos": total_lidos,
+            "total_baixados": total_baixados,
             "acessos_por_conteudo": [
                 {
-                    "id_livro": row.id_livro,
-                    "titulo": row.titulo,
-                    "genero": row.genero,
-                    "acessos": row.acessos,
-                    "lidos": row.lidos,
-                    "baixados": row.baixados,
-                    "favoritos": row.favoritos,
+                    "id_livro": l.id_livro,
+                    "titulo": l.titulo,
+                    "categorias": _separar_categorias(l.genero),
+                    "acessos": l.acessos,
+                    "lidos": l.lidos,
+                    "baixados": l.baixados,
+                    "favoritos": l.favoritos,
                 }
-                for row in por_conteudo
+                for l in ranking
             ],
-            "acessos_por_categoria": [
-                {
-                    "categoria": row.categoria,
-                    "acessos": row.acessos,
-                    "lidos": row.lidos,
-                    "baixados": row.baixados,
-                }
-                for row in por_categoria
-            ],
+            "acessos_por_categoria": por_categoria,
         }
     finally:
         session.close()
