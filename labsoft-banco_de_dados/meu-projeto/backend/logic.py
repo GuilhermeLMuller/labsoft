@@ -1501,6 +1501,17 @@ def get_livro_estatisticas(id_livro):
                 }
     finally:
         session.close()
+def abrir_livro_pdf(id_livro):
+    session = SessionLocal()
+    try:
+        livro = session.get(models.Livro, id_livro)
+        if not livro:
+            raise ValueError("Livro não encontrado")
+        return r2.get_object(Bucket=os.environ["R2_BUCKET_NAME"], Key=f"livros/{id_livro}.pdf")["Body"]
+    finally:
+        session.close()
+
+
 def ler_livro_pdf(id_livro):
     session = SessionLocal()
     try:

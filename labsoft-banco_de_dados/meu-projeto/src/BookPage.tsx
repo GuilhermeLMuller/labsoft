@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { createReview, deleteReview, ensureUserBookRecord, fetchBookReviews, setUserFavorite, updateReview } from "./api"
+import { createReview, deleteReview, ensureUserBookRecord, fetchBookReviews, fetchUserBookRecord, setUserFavorite, updateReview, type UserBookRecord } from "./api"
+import PdfReader from "./PdfReader"
 import { BookCover, Icon, books, type BookList } from "./shared"
 
 const API_URL = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
@@ -43,15 +44,6 @@ const seedReviews: Record<number, Review[]> = {
 
 export const initialReviews = seedReviews
 
-const passages = [
-  "A chuva começou antes que alguém tivesse coragem de fechar as janelas. Lá fora, a rua inteira parecia prender a respiração, como quem espera uma notícia que já sabe qual é.",
-  "Havia, naquela hora da tarde, uma luz que fazia as coisas parecerem mais antigas do que eram. A xícara sobre a mesa, o relógio parado, o livro aberto na mesma página desde a véspera.",
-  "— Você acha que as pessoas mudam? — perguntou ela, sem tirar os olhos do vidro embaçado. A resposta demorou tanto que virou outra coisa: uma forma de carinho.",
-  "Aprendeu cedo que certas histórias não se contam de uma vez. Elas chegam em pedaços, trazidas por quem se lembra, e só no fim se juntam num desenho que ninguém pediu.",
-  "O caminho de volta era mais curto, como sempre acontece. Ainda assim, ele caminhou devagar, guardando cada detalhe da paisagem, como se pudesse levar a cidade no bolso.",
-  "Quando por fim abriu a carta, não leu as palavras. Reconheceu primeiro a letra, e foi a letra que disse tudo o que importava.",
-]
-
 function Stars({ value, size = "h-4 w-4" }: { value: number; size?: string }) {
   return (
     <span aria-label={`${value.toFixed(1).replace(".", ",")} de 5 estrelas`} className="flex gap-0.5 text-[#b55f40]">
@@ -59,95 +51,6 @@ function Stars({ value, size = "h-4 w-4" }: { value: number; size?: string }) {
         <Icon className={size} filled={n <= Math.round(value)} key={n} name="star" />
       ))}
     </span>
-  )
-}
-
-function Reader({ bookId, startPage, onPage, onClose }: { bookId: number; startPage: number; onPage: (p: number) => void; onClose: () => void }) {
-  const book = books.find((b) => b.id === bookId) ?? {
-    id: bookId,
-    title: `Livro #${bookId}`,
-    author: "Autor não informado",
-    genre: "Livro",
-    rating: "—",
-    color: "from-[#68736d] to-[#35443d]",
-    accent: "#e9e2d0",
-    mark: "catálogo",
-  }
-  const total = bookDetails[bookId]?.pages ?? 1
-  const [page, setPage] = useState(startPage)
-
-  useEffect(() => {
-    onPage(page)
-  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-      if (e.key === "ArrowRight") setPage((p) => Math.min(total, p + 1))
-      if (e.key === "ArrowLeft") setPage((p) => Math.max(1, p - 1))
-    }
-    document.addEventListener("keydown", onKey)
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.removeEventListener("keydown", onKey)
-      document.body.style.overflow = ""
-    }
-  }, [onClose, total])
-
-  const text = [0, 1, 2].map((i) => passages[(page * 2 + i) % passages.length])
-  const pct = Math.round((page / total) * 100)
-
-  return (
-    <div aria-label={`Leitor: ${book.title}`} aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-[#f3ecdc]" role="dialog">
-      <div className="flex h-14 items-center gap-4 border-b border-[#ded8cb] px-4 sm:px-8">
-        <button className="inline-flex items-center gap-1 text-sm font-semibold text-[#245947]" onClick={onClose} type="button">
-          <Icon className="h-4 w-4 rotate-180" name="chevron" /> Fechar
-        </button>
-        <p className="min-w-0 flex-1 truncate text-center font-serif text-sm font-semibold">{book.title}</p>
-        <span className="text-xs text-[#77736a]">{pct}%</span>
-      </div>
-      <div className="h-1 bg-[#dfdcd4]">
-        <div className="h-full bg-[#b55f40] transition-all" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="flex-1 overflow-y-auto px-6 py-10">
-        <article className="mx-auto max-w-[620px]">
-          {page === 1 ? (
-            <header className="mb-8 text-center">
-              <p className="text-xs uppercase tracking-[0.25em] text-[#98735b]">Capítulo 1</p>
-              <h1 className="mt-3 font-serif text-4xl font-semibold">{book.title}</h1>
-            </header>
-          ) : (
-            <p className="mb-8 text-center text-xs uppercase tracking-[0.25em] text-[#98735b]">Capítulo {Math.ceil(page / 24)}</p>
-          )}
-          <div className="space-y-6 font-serif text-[19px] leading-[1.85] text-[#2c2a24]">
-            {text.map((t, i) => (
-              <p className={i === 0 && page === 1 ? "first-letter:float-left first-letter:mr-2 first-letter:text-6xl first-letter:leading-[0.9] first-letter:text-[#245947]" : ""} key={i}>{t}</p>
-            ))}
-          </div>
-        </article>
-      </div>
-      <div className="flex items-center justify-between gap-3 border-t border-[#ded8cb] px-4 py-3 sm:px-8">
-        <button className="h-10 rounded-full border border-[#245947] px-5 text-sm font-semibold text-[#245947] transition hover:bg-[#245947]/10 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage(page - 1)} type="button">
-          Anterior
-        </button>
-        <label className="flex items-center gap-2 text-sm text-[#5a574f]">
-          Página
-          <input
-            aria-label="Ir para a página"
-            className="h-9 w-16 rounded-lg border border-[#ddd7ca] bg-white text-center text-sm outline-none focus:border-[#245947]"
-            max={total}
-            min={1}
-            onChange={(e) => setPage(Math.min(total, Math.max(1, Number(e.target.value) || 1)))}
-            type="number"
-            value={page}
-          />
-          de {total}
-        </label>
-        <button className="h-10 rounded-full bg-[#245947] px-5 text-sm font-bold text-white transition hover:bg-[#1b4637] disabled:opacity-40" disabled={page >= total} onClick={() => setPage(page + 1)} type="button">
-          Próxima
-        </button>
-      </div>
-    </div>
   )
 }
 
@@ -167,8 +70,9 @@ export default function BookPage(p: Props) {
     year: 0,
     synopsis: ["As informações deste livro ainda não estão disponíveis no catálogo."],
     size: "—",
-  } ?? { pages: 250, year: 2024, size: "1,0 MB", synopsis: ["Sinopse não disponível."] }
-  const [reading, setReading] = useState(false)
+  }
+  const [reading, setReading] = useState<UserBookRecord | null>(null)
+  const [openingReader, setOpeningReader] = useState(false)
   const [stars, setStars] = useState(0)
   const [hover, setHover] = useState(0)
   const [text, setText] = useState("")
@@ -238,6 +142,10 @@ export default function BookPage(p: Props) {
     if (!p.userId) return
     let active = true
     ensureUserBookRecord(p.userId, p.bookId)
+      .then(() => fetchUserBookRecord(p.userId!, p.bookId))
+      .then((record) => {
+        if (active && record?.pagina_lendo) p.setProgress(p.bookId, record.pagina_lendo)
+      })
       .catch((error: Error) => {
         if (active) setToast(error.message)
       })
@@ -279,6 +187,25 @@ export default function BookPage(p: Props) {
   const isFavorite = p.favorites.includes(p.bookId)
   const isDownloaded = p.downloaded.includes(p.bookId)
   const saved = p.progress[p.bookId]
+
+  const openReader = async () => {
+    if (!p.userId) return p.onRequireAuth()
+    setOpeningReader(true)
+    try {
+      let record = await fetchUserBookRecord(p.userId, p.bookId)
+      if (!record) {
+        await ensureUserBookRecord(p.userId, p.bookId)
+        record = await fetchUserBookRecord(p.userId, p.bookId)
+      }
+      if (!record) throw new Error("Não foi possível carregar o progresso de leitura.")
+      if (record.pagina_lendo) p.setProgress(p.bookId, record.pagina_lendo)
+      setReading(record)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Não foi possível abrir o livro.")
+    } finally {
+      setOpeningReader(false)
+    }
+  }
 
   const score = useMemo(() => {
     const count = reviews.length
@@ -422,7 +349,7 @@ export default function BookPage(p: Props) {
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <button className="inline-flex h-12 items-center gap-2 rounded-full bg-[#245947] px-7 text-sm font-bold text-white transition hover:bg-[#1b4637]" onClick={guard(() => setReading(true))} type="button">
+              <button className="inline-flex h-12 items-center gap-2 rounded-full bg-[#245947] px-7 text-sm font-bold text-white transition hover:bg-[#1b4637] disabled:opacity-50" disabled={openingReader} onClick={() => void openReader()} type="button">
                 <Icon className="h-4 w-4" name="book" /> {saved ? `Continuar na página ${saved}` : "Ler agora"}
               </button>
               <button className="inline-flex h-12 items-center gap-2 rounded-full border border-[#245947] px-6 text-sm font-bold text-[#245947] transition hover:bg-[#245947]/10" onClick={download} type="button">
@@ -582,7 +509,7 @@ export default function BookPage(p: Props) {
         </div>
       </section>
 
-      {reading && <Reader bookId={p.bookId} onClose={() => setReading(false)} onPage={(pg) => p.setProgress(p.bookId, pg)} startPage={saved ?? 1} />}
+      {reading && <PdfReader bookId={p.bookId} title={book.title} record={reading} onClose={() => setReading(null)} onPage={(pg) => p.setProgress(p.bookId, pg)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-[#1d493b] px-5 py-3 text-sm font-medium text-white shadow-lg" role="status">{toast}</div>

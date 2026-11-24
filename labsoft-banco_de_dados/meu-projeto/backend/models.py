@@ -62,7 +62,7 @@ class Usuario(Base):
     )
     nome = Column(String(150), nullable=False)
     tipo = Column(
-        Enum("administrador", "autor", "leitor", name="tipo_usuario"),
+        Enum("administrador", "autor", "leitor", "titular", name="tipo_usuario"),
         nullable=False,
     )
     gostos = Column(ARRAY(Text), nullable=True)

@@ -180,6 +180,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    setProgress({})
     if (!user) {
       setFavorites([])
       return

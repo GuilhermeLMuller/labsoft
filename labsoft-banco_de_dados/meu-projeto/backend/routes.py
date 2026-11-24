@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 import starlette.status as status
 from typing import List, Optional
 from database import engine
@@ -296,7 +296,7 @@ async def delete_avaliacao_endpoint(avaliacao_data: DeleteAvaliacaoInput):
 @app.post("/data/livro_usuario")
 async def create_livro_usuario_endpoint(data: CreateLivroUsuarioInput):
     try:
-        return create_livro_usuario(data.model_dump())
+        return create_livro_usuario(data.model_dump(exclude_unset=True))
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"message": str(exc)})
 
@@ -443,6 +443,22 @@ async def get_estatisticas_livro(id_livro: int):
         return JSONResponse(status_code=404, content={"message": str(exc)})
 
 #arquivos
+@app.get("/livro/{id_livro}/pdf/conteudo")
+def get_pdf_conteudo(id_livro: int):
+    try:
+        arquivo = abrir_livro_pdf(id_livro)
+    except ValueError as exc:
+        return JSONResponse(status_code=404, content={"message": str(exc)})
+
+    def conteudo():
+        try:
+            yield from arquivo.iter_chunks(chunk_size=64 * 1024)
+        finally:
+            arquivo.close()
+
+    return StreamingResponse(conteudo(), media_type="application/pdf")
+
+
 @app.get("/livro/{id_livro}/pdf")
 async def get_pdf(id_livro: int):
     try:

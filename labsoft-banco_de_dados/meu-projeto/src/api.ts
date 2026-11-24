@@ -162,6 +162,11 @@ export function fetchUserBookRecords(userId: number) {
   return request<UserBookRecord[]>(`/data/livro_usuario?id_usuario=${userId}&offset=0&limit=100`)
 }
 
+export async function fetchUserBookRecord(userId: number, bookId: number) {
+  const records = await request<UserBookRecord[]>(`/data/livro_usuario?id_usuario=${userId}&id_livro=${bookId}&offset=0&limit=1`)
+  return records[0] ?? null
+}
+
 export function fetchBook(bookId: number) {
   return request<BookDetailsResponse>(`/livro/${bookId}`)
 }
@@ -185,11 +190,11 @@ export function createUserBookRecord(userId: number, bookId: number, values: Par
     body: JSON.stringify({
       id_usuario: userId,
       id_livro: bookId,
-      lido: values.lido ?? false,
-      baixado: values.baixado ?? false,
-      lendo: values.lendo ?? false,
-      pagina_lendo: values.pagina_lendo ?? null,
-      favoritado: values.favoritado ?? false,
+      lido: values.lido,
+      baixado: values.baixado,
+      lendo: values.lendo,
+      pagina_lendo: values.pagina_lendo,
+      favoritado: values.favoritado,
     }),
   })
 }
