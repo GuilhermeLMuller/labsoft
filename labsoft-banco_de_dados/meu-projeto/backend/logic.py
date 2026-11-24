@@ -1579,3 +1579,88 @@ def _validar_regras_titular(tipo, idade, eh_primeiro):
             raise ValueError("O titular da conta deve ser maior de idade.")
     elif tipo == "titular":
         raise ValueError("A conta já possui um titular.")
+
+
+def get_dashboard(limit: int = 20):
+    session = SessionLocal()
+    try:
+        LU = models.LivroUsuario
+
+        total_usuarios = session.query(func.count(models.Usuario.id_usuario)).scalar()
+
+        usuarios_por_tipo = (
+            session.query(models.Usuario.tipo, func.count(models.Usuario.id_usuario))
+            .group_by(models.Usuario.tipo)
+            .all()
+        )
+
+        # Cada linha de livro_usuario = 1 acesso (usuário que abriu o conteúdo)
+        acessos = func.count(LU.id_livro_usuario)
+        lidos = func.count(LU.id_livro_usuario).filter(LU.lido.is_(True))
+        baixados = func.count(LU.id_livro_usuario).filter(LU.baixado.is_(True))
+        favoritos = func.count(LU.id_livro_usuario).filter(LU.favoritado.is_(True))
+
+        # Acessos por conteúdo (livro)
+        por_conteudo = (
+            session.query(
+                models.Livro.id_livro,
+                models.Livro.titulo,
+                models.Livro.genero,
+                acessos.label("acessos"),
+                lidos.label("lidos"),
+                baixados.label("baixados"),
+                favoritos.label("favoritos"),
+            )
+            .outerjoin(LU, LU.id_livro == models.Livro.id_livro)
+            .group_by(models.Livro.id_livro, models.Livro.titulo, models.Livro.genero)
+            .order_by(acessos.desc(), models.Livro.id_livro)
+            .limit(limit)
+            .all()
+        )
+
+        # Acessos por categoria (gênero)
+        categoria = func.coalesce(models.Livro.genero, "Sem categoria")
+        por_categoria = (
+            session.query(
+                categoria.label("categoria"),
+                acessos.label("acessos"),
+                lidos.label("lidos"),
+                baixados.label("baixados"),
+            )
+            .select_from(models.Livro)
+            .outerjoin(LU, LU.id_livro == models.Livro.id_livro)
+            .group_by(categoria)
+            .order_by(acessos.desc(), categoria)
+            .all()
+        )
+
+        return {
+            "total_usuarios": total_usuarios,
+            "usuarios_por_tipo": {tipo: total for tipo, total in usuarios_por_tipo},
+            "total_acessos": sum(row.acessos for row in por_categoria),
+            "total_lidos": sum(row.lidos for row in por_categoria),
+            "total_baixados": sum(row.baixados for row in por_categoria),
+            "acessos_por_conteudo": [
+                {
+                    "id_livro": row.id_livro,
+                    "titulo": row.titulo,
+                    "genero": row.genero,
+                    "acessos": row.acessos,
+                    "lidos": row.lidos,
+                    "baixados": row.baixados,
+                    "favoritos": row.favoritos,
+                }
+                for row in por_conteudo
+            ],
+            "acessos_por_categoria": [
+                {
+                    "categoria": row.categoria,
+                    "acessos": row.acessos,
+                    "lidos": row.lidos,
+                    "baixados": row.baixados,
+                }
+                for row in por_categoria
+            ],
+        }
+    finally:
+        session.close()

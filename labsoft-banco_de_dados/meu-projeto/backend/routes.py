@@ -464,3 +464,10 @@ async def get_pdf_download(id_livro: int):
         return RedirectResponse(url=arquivo, status_code=status.HTTP_302_FOUND)
     except ValueError as exc:
         return JSONResponse(status_code=404, content={"message": str(exc)})
+
+
+@app.get("/data/dashboard")
+async def get_dashboard_endpoint(
+    limit: int = Query(20, ge=1, le=100, description="Quantidade de conteúdos no ranking de acessos"),
+):
+    return get_dashboard(limit=limit)
