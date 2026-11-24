@@ -22,6 +22,8 @@ docker compose version
 
 ## Iniciar com Docker
 
+Em um banco existente, execute antes a migração `labsoft-banco_de_dados/database/4-livros-deletados.sql` no PostgreSQL. O script adiciona a coluna `deletado` aos livros existentes. O banco deve conter um usuário do tipo `administrador` para acessar a opção **Administrar livros** após o login. O cadastro de livros utiliza o bucket R2 configurado no backend e aceita arquivos PDF e capas JPEG.
+
 Na raiz do repositório, execute:
 
 ```bash

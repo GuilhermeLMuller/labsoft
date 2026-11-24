@@ -15,7 +15,7 @@ type Props = {
   mode: AuthMode
   onModeChange: (mode: AuthMode) => void
   onClose: () => void
-  onSuccess: (account: { id: number; name: string; email: string }) => void
+  onSuccess: (account: { id: number; name: string; email: string; type: string; password: string }) => void
 }
 
 const inputClass =
@@ -111,6 +111,8 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
         id: result.user.id,
         name: result.user.name,
         email,
+        type: result.user.type,
+        password,
       })
       onClose()
     } catch (error) {
@@ -181,6 +183,8 @@ export default function AuthPage({ mode, onModeChange, onClose, onSuccess }: Pro
                   id: userProfile.id,
                   name: userProfile.name,
                   email,
+                  type: userProfile.type,
+                  password,
                 })
                 onClose()
               }}

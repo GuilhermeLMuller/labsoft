@@ -3,6 +3,7 @@ import AuthPage, { type AuthMode } from "./AuthPage"
 import BookPage, { type Review, initialReviews } from "./BookPage"
 import ProfilePage from "./ProfilePage"
 import SearchResultsPage from "./SearchResultsPage"
+import AdminPage from "./AdminPage"
 import { fetchUserBookRecords } from "./api"
 import { type BookList } from "./shared"
 
@@ -167,8 +168,8 @@ export default function App() {
   const [favorites, setFavorites] = useState<number[]>([3])
   const [menuOpen, setMenuOpen] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
-  const [user, setUser] = useState<{ id: number; name: string; email: string } | null>(null)
-  const [currentView, setCurrentView] = useState<"home" | "profile" | "search" | "book">("home")
+  const [user, setUser] = useState<{ id: number; name: string; email: string; type: string; password: string } | null>(null)
+  const [currentView, setCurrentView] = useState<"home" | "profile" | "search" | "book" | "admin">("home")
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null)
   const [lastView, setLastView] = useState<"home" | "search">("home")
   const [lists, setLists] = useState<BookList[]>([])
@@ -223,6 +224,10 @@ export default function App() {
     const term = query.trim()
     if (!term) return
     setCurrentView("search")
+  }
+
+  if (currentView === "admin" && user?.type === "administrador") {
+    return <AdminPage user={user} onBack={() => setCurrentView("home")} />
   }
 
   if (currentView === "profile" && user) {
@@ -313,6 +318,7 @@ export default function App() {
                 </button>
               </>
             )}
+            {user?.type === "administrador" && <button className="transition hover:text-[#245947]" onClick={() => setCurrentView("admin")} type="button">Administrar livros</button>}
           </nav>
 
           <form className="relative ml-auto hidden w-full max-w-[320px] lg:block" onSubmit={handleSearchSubmit}>
@@ -390,6 +396,7 @@ export default function App() {
                   {item}
                 </a>
               ))}
+              {user?.type === "administrador" && <button className="rounded-lg px-3 py-2.5 text-left font-medium hover:bg-[#eee9df]" onClick={() => { setCurrentView("admin"); setMenuOpen(false) }} type="button">Administrar livros</button>}
               {!user && (
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#ded8cb] pt-4">
                   <button className="h-11 rounded-full border border-[#245947] font-semibold text-[#245947]" onClick={() => { setMenuOpen(false); setAuthMode("login") }} type="button">Entrar</button>
