@@ -137,7 +137,51 @@ const books = [
   },
 ]
 
-const genres = ["Todos", "Romance", "Aventura", "Ciência", "Contos"]
+const api = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "")
+const RECOMMENDATIONS_PAGE_SIZE = 20
+
+type Recommendation = {
+  id: number
+  titulo: string | null
+  autor: string
+  genero: string | null
+  sinopse: string | null
+  media_estrelas: number
+  total_avaliacoes: number
+  motivo: "genero_preferido" | "mais_bem_avaliados"
+}
+
+const recommendationReason: Record<Recommendation["motivo"], string> = {
+  genero_preferido: "Com base nos seus gostos",
+  mais_bem_avaliados: "Mais bem avaliados",
+}
+
+// "Romance; ficção absurda" -> ["Romance", "ficção absurda"]
+function splitGenres(genero: string | null) {
+  return (genero ?? "").split(";").map((item) => item.trim()).filter(Boolean)
+}
+
+function RecommendedCover({ book }: { book: Recommendation }) {
+  const [failed, setFailed] = useState(false)
+  return (
+    <div className="relative aspect-[3/4.35] overflow-hidden rounded-md bg-gradient-to-br from-[#2f604d] to-[#183b2e] shadow-[0_14px_30px_rgba(41,30,22,0.16)]">
+      {failed ? (
+        <div className="absolute inset-x-[12%] top-[23%] text-center">
+          <h3 className="font-serif text-xl leading-[1.05] text-white">{book.titulo || "Sem título"}</h3>
+          <p className="mt-3 text-[8px] uppercase tracking-[0.22em] text-white/70">{book.autor}</p>
+        </div>
+      ) : (
+        <img
+          alt={`Capa de ${book.titulo || "livro sem título"}`}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setFailed(true)}
+          src={`${api}/livro/${book.id}/capa`}
+        />
+      )}
+    </div>
+  )
+}
 
 function BookCover({ book, compact = false }: { book: (typeof books)[number]; compact?: boolean }) {
   return (
@@ -177,6 +221,10 @@ export default function App() {
   const [downloaded, setDownloaded] = useState<number[]>([])
   const [progress, setProgress] = useState<Record<number, number>>({})
   const [reviews, setReviews] = useState<Record<number, Review[]>>(initialReviews)
+  const [recommended, setRecommended] = useState<Recommendation[]>([])
+  const [recommendedLoading, setRecommendedLoading] = useState(false)
+  const [recommendedError, setRecommendedError] = useState("")
+  const [recommendedHasMore, setRecommendedHasMore] = useState(false)
   const updateProgress = useCallback((id: number, page: number) => {
     setProgress((current) => ({ ...current, [id]: page }))
   }, [])
@@ -199,16 +247,64 @@ export default function App() {
     }
   }, [user])
 
-  const visibleBooks = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR")
-    return books.filter((book) => {
-      const matchesGenre = genre === "Todos" || book.genre === genre
-      const matchesQuery =
-        !normalizedQuery ||
-        `${book.title} ${book.author} ${book.genre}`.toLocaleLowerCase("pt-BR").includes(normalizedQuery)
-      return matchesGenre && matchesQuery
-    })
-  }, [genre, query])
+  const fetchRecommendations = useCallback(async (userId: number, offset: number) => {
+    const response = await fetch(`${api}/data/usuarios/${userId}/recomendacoes?offset=${offset}&limit=${RECOMMENDATIONS_PAGE_SIZE}`)
+    const data = await response.json()
+    if (!response.ok) throw new Error(typeof data.message === "string" ? data.message : "Não foi possível carregar as recomendações.")
+    return data as Recommendation[]
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setRecommended([])
+      setRecommendedHasMore(false)
+      setRecommendedError("")
+      return
+    }
+    let active = true
+    setRecommendedLoading(true)
+    setRecommendedError("")
+    fetchRecommendations(user.id, 0)
+      .then((items) => {
+        if (!active) return
+        setRecommended(items)
+        setRecommendedHasMore(items.length === RECOMMENDATIONS_PAGE_SIZE && items[0]?.motivo === "genero_preferido")
+      })
+      .catch((error) => {
+        if (!active) return
+        setRecommended([])
+        setRecommendedHasMore(false)
+        setRecommendedError(error instanceof Error ? error.message : "Não foi possível carregar as recomendações.")
+      })
+      .finally(() => { if (active) setRecommendedLoading(false) })
+    return () => { active = false }
+  }, [user?.id, fetchRecommendations])
+
+  const loadMoreRecommended = async () => {
+    if (!user) return
+    setRecommendedLoading(true)
+    setRecommendedError("")
+    try {
+      const items = await fetchRecommendations(user.id, recommended.length)
+      setRecommended((current) => [...current, ...items])
+      setRecommendedHasMore(items.length === RECOMMENDATIONS_PAGE_SIZE)
+    } catch (error) {
+      setRecommendedError(error instanceof Error ? error.message : "Não foi possível carregar mais recomendações.")
+    } finally {
+      setRecommendedLoading(false)
+    }
+  }
+
+  // Filtros de gênero montados a partir das recomendações recebidas
+  const recommendedGenres = useMemo(
+    () => ["Todos", ...Array.from(new Set(recommended.flatMap((book) => splitGenres(book.genero))))],
+    [recommended],
+  )
+  const activeGenre = recommendedGenres.includes(genre) ? genre : "Todos"
+  const visibleRecommended = useMemo(
+    () => (activeGenre === "Todos" ? recommended : recommended.filter((book) => splitGenres(book.genero).includes(activeGenre))),
+    [recommended, activeGenre],
+  )
 
   const toggleFavorite = (id: number) => {
     setFavorites((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
@@ -513,69 +609,87 @@ export default function App() {
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-[#a35d3e]">Escolhidos para você</p>
                 <h2 className="font-serif text-2xl font-semibold tracking-tight sm:text-3xl">Recomendados</h2>
+                {recommended[0] && <p className="mt-1 text-sm text-[#77736a]">{recommendationReason[recommended[0].motivo]}</p>}
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {genres.map((item) => (
-                  <button
-                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${
-                      genre === item ? "bg-[#245947] text-white" : "border border-[#d4cdbf] bg-[#f8f5ef] text-[#656159]"
-                    }`}
-                    key={item}
-                    onClick={() => setGenre(item)}
-                    type="button"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
+              {recommendedGenres.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {recommendedGenres.map((item) => (
+                    <button
+                      className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${
+                        activeGenre === item ? "bg-[#245947] text-white" : "border border-[#d4cdbf] bg-[#f8f5ef] text-[#656159]"
+                      }`}
+                      key={item}
+                      onClick={() => setGenre(item)}
+                      type="button"
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {visibleBooks.length > 0 ? (
-              <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-5">
-                {visibleBooks.map((book) => {
-                  const isFavorite = favorites.includes(book.id)
-                  return (
-                    <article className="group min-w-0" key={book.id}>
-                      <div className="relative">
-                        <BookCover book={book} />
-                        <button
-                          aria-label={isFavorite ? `Remover ${book.title} dos favoritos` : `Favoritar ${book.title}`}
-                          className={`absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full shadow-sm transition ${
-                            isFavorite ? "bg-[#b65c40] text-white" : "bg-[#fffdf8]/90 text-[#4f4c46] hover:text-[#b65c40]"
-                          }`}
-                          onClick={() => toggleFavorite(book.id)}
-                          type="button"
-                        >
-                          <Icon name="heart" className="h-4 w-4" filled={isFavorite} />
-                        </button>
-                      </div>
-                      <div className="pt-4">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#98735b]">{book.genre}</span>
-                          <span className="text-xs font-semibold text-[#77736a]">★ {book.rating}</span>
-                        </div>
-                        <h3 className="mt-1 truncate font-serif text-lg font-semibold">{book.title}</h3>
-                        <p className="mt-1 truncate text-xs text-[#77736a]">{book.author}</p>
-                      </div>
-                    </article>
-                  )
-                })}
+            {!user ? (
+              <div className="mt-8 rounded-2xl border border-dashed border-[#c9c1b2] py-16 text-center">
+                <Icon name="book" className="mx-auto h-7 w-7 text-[#8c877d]" />
+                <h3 className="mt-3 font-serif text-xl font-semibold">Recomendações feitas para você</h3>
+                <p className="mt-1 text-sm text-[#77736a]">Entre na sua conta para ver livros escolhidos com base nos seus gostos.</p>
+                <button className="mt-5 text-sm font-bold text-[#245947]" onClick={() => setAuthMode("login")} type="button">Entrar</button>
               </div>
+            ) : recommendedError ? (
+              <p role="alert" className="mt-8 rounded-xl bg-[#f6e3df] p-4 text-[#8a2f22]">{recommendedError}</p>
+            ) : recommendedLoading && recommended.length === 0 ? (
+              <p role="status" className="mt-8 text-[#77736a]">Carregando recomendações...</p>
+            ) : visibleRecommended.length > 0 ? (
+              <>
+                <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-5">
+                  {visibleRecommended.map((book) => {
+                    const isFavorite = favorites.includes(book.id)
+                    const title = book.titulo || "Sem título"
+                    return (
+                      <article className="group min-w-0" key={book.id}>
+                        <div className="relative">
+                          <button aria-label={`Abrir ${title}`} className="block w-full text-left" onClick={() => openBook(book.id)} type="button">
+                            <RecommendedCover book={book} />
+                          </button>
+                          <button
+                            aria-label={isFavorite ? `Remover ${title} dos favoritos` : `Favoritar ${title}`}
+                            className={`absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full shadow-sm transition ${
+                              isFavorite ? "bg-[#b65c40] text-white" : "bg-[#fffdf8]/90 text-[#4f4c46] hover:text-[#b65c40]"
+                            }`}
+                            onClick={() => toggleFavorite(book.id)}
+                            type="button"
+                          >
+                            <Icon name="heart" className="h-4 w-4" filled={isFavorite} />
+                          </button>
+                        </div>
+                        <div className="pt-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-[#98735b]">{splitGenres(book.genero)[0] ?? "Sem gênero"}</span>
+                            <span className="shrink-0 text-xs font-semibold text-[#77736a]">
+                              {book.total_avaliacoes > 0 ? `★ ${book.media_estrelas.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : "Sem avaliações"}
+                            </span>
+                          </div>
+                          <button className="mt-1 block w-full truncate text-left font-serif text-lg font-semibold" onClick={() => openBook(book.id)} type="button">{title}</button>
+                          <p className="mt-1 truncate text-xs text-[#77736a]">{book.autor}</p>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+                {recommendedHasMore && (
+                  <div className="mt-10 text-center">
+                    <button className="rounded-full border border-[#245947] px-6 py-2.5 text-sm font-bold text-[#245947] disabled:opacity-50" disabled={recommendedLoading} onClick={loadMoreRecommended} type="button">
+                      {recommendedLoading ? "Carregando..." : "Ver mais recomendações"}
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="mt-8 rounded-2xl border border-dashed border-[#c9c1b2] py-16 text-center">
                 <Icon name="search" className="mx-auto h-7 w-7 text-[#8c877d]" />
-                <h3 className="mt-3 font-serif text-xl font-semibold">Nenhum livro encontrado</h3>
-                <p className="mt-1 text-sm text-[#77736a]">Tente outro título, autor ou gênero.</p>
-                <button
-                  className="mt-5 text-sm font-bold text-[#245947]"
-                  onClick={() => {
-                    setQuery("")
-                    setGenre("Todos")
-                  }}
-                  type="button"
-                >
-                  Limpar busca
-                </button>
+                <h3 className="mt-3 font-serif text-xl font-semibold">Nenhuma recomendação por enquanto</h3>
+                <p className="mt-1 text-sm text-[#77736a]">Atualize seus gostos no perfil ou avalie alguns livros para receber sugestões.</p>
               </div>
             )}
           </div>
